@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Мой Дневник</string>
+    <string name="app_name">Твой Дневник</string>
 
     <!-- Menu actions -->
     <string name="action_translate">Перевести</string>

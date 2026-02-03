@@ -1,5 +1,5 @@
 # Keep WebView JavaScript interface
--keepclassmembers class lt.manodienynas.app.MainActivity$WebAppInterface {
+-keepclassmembers class lt.tavodienynas.app.MainActivity$WebAppInterface {
     public *;
 }
 

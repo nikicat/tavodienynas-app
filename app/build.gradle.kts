@@ -13,7 +13,7 @@ if (localPropertiesFile.exists()) {
 }
 
 android {
-    namespace = "lt.manodienynas.app"
+    namespace = "lt.tavodienynas.app"
     compileSdk = 36
     buildToolsVersion = "36.1.0"
 
@@ -30,7 +30,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "lt.manodienynas.app"
+        applicationId = "lt.tavodienynas.app"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

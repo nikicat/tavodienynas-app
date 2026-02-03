@@ -1,4 +1,4 @@
-package lt.manodienynas.app
+package lt.tavodienynas.app
 
 import android.annotation.SuppressLint
 import android.app.DownloadManager

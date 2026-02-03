@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Mój Dziennik</string>
+    <string name="app_name">Twój Dziennik</string>
 
     <!-- Menu actions -->
     <string name="action_translate">Tłumacz</string>
