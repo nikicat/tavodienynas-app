@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mój Dziennik</string>
+
+    <!-- Menu actions -->
+    <string name="action_translate">Tłumacz</string>
+    <string name="action_refresh">Odśwież</string>
+    <string name="action_home">Strona główna</string>
+
+    <!-- Translation dialog -->
+    <string name="translate_title">Przetłumacz stronę</string>
+    <string name="lang_original">Oryginał (litewski)</string>
+    <string name="lang_english">Angielski</string>
+    <string name="lang_russian">Rosyjski</string>
+    <string name="lang_polish">Polski</string>
+    <string name="lang_german">Niemiecki</string>
+    <string name="lang_french">Francuski</string>
+
+    <!-- Security messages -->
+    <string name="blocked_url_message">Dostęp do %1$s jest zabroniony</string>
+
+    <!-- Download messages -->
+    <string name="download_started">Pobieranie: %1$s</string>
+    <string name="download_description">Pobieranie pliku</string>
+    <string name="download_failed">Pobieranie nie powiodło się</string>
+    <string name="no_app_to_open">Brak aplikacji do otwarcia tego pliku</string>
+    <string name="open_file_failed">Nie można otworzyć pliku</string>
+</resources>

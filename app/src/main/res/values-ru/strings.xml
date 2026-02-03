@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Мой Дневник</string>
+
+    <!-- Menu actions -->
+    <string name="action_translate">Перевести</string>
+    <string name="action_refresh">Обновить</string>
+    <string name="action_home">Главная</string>
+
+    <!-- Translation dialog -->
+    <string name="translate_title">Перевести страницу</string>
+    <string name="lang_original">Оригинал (литовский)</string>
+    <string name="lang_english">Английский</string>
+    <string name="lang_russian">Русский</string>
+    <string name="lang_polish">Польский</string>
+    <string name="lang_german">Немецкий</string>
+    <string name="lang_french">Французский</string>
+
+    <!-- Security messages -->
+    <string name="blocked_url_message">Доступ к %1$s запрещён</string>
+
+    <!-- Download messages -->
+    <string name="download_started">Загрузка: %1$s</string>
+    <string name="download_description">Загрузка файла</string>
+    <string name="download_failed">Ошибка загрузки</string>
+    <string name="no_app_to_open">Нет приложения для открытия этого файла</string>
+    <string name="open_file_failed">Не удалось открыть файл</string>
+</resources>

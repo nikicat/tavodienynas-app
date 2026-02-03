@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Мій Щоденник</string>
+
+    <!-- Menu actions -->
+    <string name="action_translate">Перекласти</string>
+    <string name="action_refresh">Оновити</string>
+    <string name="action_home">Головна</string>
+
+    <!-- Translation dialog -->
+    <string name="translate_title">Перекласти сторінку</string>
+    <string name="lang_original">Оригінал (литовська)</string>
+    <string name="lang_english">Англійська</string>
+    <string name="lang_russian">Російська</string>
+    <string name="lang_polish">Польська</string>
+    <string name="lang_german">Німецька</string>
+    <string name="lang_french">Французька</string>
+
+    <!-- Security messages -->
+    <string name="blocked_url_message">Доступ до %1$s заборонено</string>
+
+    <!-- Download messages -->
+    <string name="download_started">Завантаження: %1$s</string>
+    <string name="download_description">Завантаження файлу</string>
+    <string name="download_failed">Помилка завантаження</string>
+    <string name="no_app_to_open">Немає програми для відкриття цього файлу</string>
+    <string name="open_file_failed">Не вдалося відкрити файл</string>
+</resources>
