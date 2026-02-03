@@ -40,6 +40,7 @@ class MainActivity : AppCompatActivity() {
 
     // ML Kit Translation
     private lateinit var translationManager: TranslationManager
+    private lateinit var htmlTranslator: HtmlTranslator
     private var webViewTranslator: WebViewTranslator? = null
 
     private var currentLanguage: String = "original"
@@ -111,6 +112,7 @@ class MainActivity : AppCompatActivity() {
 
         // Initialize ML Kit Translation
         translationManager = TranslationManager(this)
+        htmlTranslator = HtmlTranslator(translationManager)
 
         setupWebView()
         setupSwipeRefresh()
@@ -118,6 +120,13 @@ class MainActivity : AppCompatActivity() {
 
         // Initialize WebView translator after WebView is set up
         webViewTranslator = WebViewTranslator(webView, translationManager, lifecycleScope)
+
+        // Enable HTML translation if a language was previously selected
+        if (currentLanguage != "original") {
+            htmlTranslator.targetLanguage = currentLanguage
+            htmlTranslator.isEnabled = true
+            // Models will be downloaded on first request if needed
+        }
 
         // Handle intent (deep links)
         handleIntent(intent)
@@ -344,6 +353,14 @@ class MainActivity : AppCompatActivity() {
                 return WebResourceResponse("text/plain", "UTF-8", null)
             }
 
+            // Try to intercept and translate HTML responses
+            if (request != null && htmlTranslator.isEnabled) {
+                val translatedResponse = htmlTranslator.interceptRequest(request)
+                if (translatedResponse != null) {
+                    return translatedResponse
+                }
+            }
+
             return super.shouldInterceptRequest(view, request)
         }
     }
@@ -459,15 +476,20 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle(R.string.translate_title)
             .setSingleChoiceItems(languages, currentIndex) { dialog, which ->
-                currentLanguage = languageCodes[which]
+                val newLanguage = languageCodes[which]
+                val languageChanged = newLanguage != currentLanguage
+
+                currentLanguage = newLanguage
                 // Save language preference
                 prefs.edit().putString(PREF_LANGUAGE, currentLanguage).apply()
 
                 if (currentLanguage == "original") {
-                    // Revert translation (reloads the page)
-                    webViewTranslator?.revertTranslation()
+                    // Disable HTML translation and reload
+                    htmlTranslator.isEnabled = false
+                    htmlTranslator.targetLanguage = null
+                    webView.reload()
                 } else {
-                    applyTranslation()
+                    applyTranslation(languageChanged)
                 }
                 dialog.dismiss()
             }
@@ -478,12 +500,44 @@ class MainActivity : AppCompatActivity() {
     /**
      * Applies ML Kit translation to the current page
      */
-    private fun applyTranslation() {
+    /**
+     * Apply translation using HTTP interception approach.
+     * Downloads models if needed, then reloads page so all content goes through translator.
+     */
+    private fun applyTranslation(reloadPage: Boolean = true) {
         if (currentLanguage == "original") return
 
-        webViewTranslator?.translatePage(currentLanguage) { status ->
-            runOnUiThread {
-                Toast.makeText(this, status, Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            // Ensure models are downloaded
+            Toast.makeText(this@MainActivity, "Preparing translation...", Toast.LENGTH_SHORT).show()
+
+            val modelsReady = translationManager.ensureModelsReady(currentLanguage) { status ->
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, status, Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            if (!modelsReady) {
+                Toast.makeText(this@MainActivity, "Failed to download language models", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+
+            // Configure HTML translator
+            htmlTranslator.targetLanguage = currentLanguage
+            htmlTranslator.isEnabled = true
+
+            // Reload page so all content goes through the translator
+            if (reloadPage) {
+                runOnUiThread {
+                    webView.reload()
+                }
+            } else {
+                // Just translate current page content
+                webViewTranslator?.translatePage(currentLanguage) { status ->
+                    runOnUiThread {
+                        Toast.makeText(this@MainActivity, status, Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
         }
     }

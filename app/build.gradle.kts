@@ -72,4 +72,7 @@ dependencies {
 
     // ML Kit Translation
     implementation("com.google.mlkit:translate:17.0.3")
+
+    // HTML parsing for response interception
+    implementation("org.jsoup:jsoup:1.17.2")
 }
