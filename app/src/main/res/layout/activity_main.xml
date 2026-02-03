@@ -15,6 +15,26 @@
         app:titleTextColor="@android:color/white"
         app:title="@string/app_name" />
 
+    <!-- Debug Log Panel -->
+    <ScrollView
+        android:id="@+id/debugScrollView"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:background="#1a1a2e"
+        android:padding="8dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/debugLogView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:textSize="11sp"
+            android:textColor="#00ff00"
+            android:text="Debug Log:\n" />
+
+    </ScrollView>
+
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent">

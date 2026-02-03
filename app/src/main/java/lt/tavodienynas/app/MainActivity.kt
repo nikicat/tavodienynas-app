@@ -38,6 +38,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPreferences
     private lateinit var downloadManager: DownloadManager
 
+    // Debug panel
+    private lateinit var debugLogView: android.widget.TextView
+    private lateinit var debugScrollView: android.widget.ScrollView
+
     // ML Kit Translation
     private lateinit var translationManager: TranslationManager
     private lateinit var htmlTranslator: HtmlTranslator
@@ -45,6 +49,7 @@ class MainActivity : AppCompatActivity() {
 
     private var currentLanguage: String = "original"
     private val pendingDownloads = mutableMapOf<Long, String>() // downloadId to mimeType
+    private var isFirstPageLoad = true // Flag to skip interception on first load for cookie sync
 
     private val downloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -60,6 +65,7 @@ class MainActivity : AppCompatActivity() {
         private const val BASE_URL = "https://www.manodienynas.lt/"
         private const val PREFS_NAME = "manodienynas_prefs"
         private const val PREF_LANGUAGE = "translation_language"
+        private const val PREF_DEBUG_VISIBLE = "debug_panel_visible"
 
         // Main site - only these can be navigated to
         private val ALLOWED_NAVIGATION_HOSTS = setOf(
@@ -110,6 +116,11 @@ class MainActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progressBar)
         swipeRefresh = findViewById(R.id.swipeRefresh)
 
+        // Initialize debug panel
+        debugLogView = findViewById(R.id.debugLogView)
+        debugScrollView = findViewById(R.id.debugScrollView)
+        setupDebugLogger()
+
         // Initialize ML Kit Translation
         translationManager = TranslationManager(this)
         htmlTranslator = HtmlTranslator(translationManager)
@@ -118,15 +129,18 @@ class MainActivity : AppCompatActivity() {
         setupSwipeRefresh()
         setupBackNavigation()
 
+        // Add JavaScript interface for POST body capture
+        webView.addJavascriptInterface(
+            htmlTranslator.PostBodyInterface(),
+            HtmlTranslator.JS_INTERFACE_NAME
+        )
+
         // Initialize WebView translator after WebView is set up
         webViewTranslator = WebViewTranslator(webView, translationManager, lifecycleScope)
 
-        // Enable HTML translation if a language was previously selected
-        if (currentLanguage != "original") {
-            htmlTranslator.targetLanguage = currentLanguage
-            htmlTranslator.isEnabled = true
-            // Models will be downloaded on first request if needed
-        }
+        // DON'T enable translation yet on app start - let first page load normally
+        // so WebView can sync cookies from disk. Translation will be applied in onPageFinished.
+        DebugLogger.log("Startup: savedLang=$currentLanguage, waiting for first load")
 
         // Handle intent (deep links)
         handleIntent(intent)
@@ -143,6 +157,33 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
+    }
+
+    private fun setupDebugLogger() {
+        // Restore debug panel visibility
+        val debugVisible = prefs.getBoolean(PREF_DEBUG_VISIBLE, false)
+        debugScrollView.visibility = if (debugVisible) View.VISIBLE else View.GONE
+
+        DebugLogger.setCallback { message ->
+            debugLogView.append("$message\n")
+            // Auto-scroll to bottom
+            debugScrollView.post {
+                debugScrollView.fullScroll(android.widget.ScrollView.FOCUS_DOWN)
+            }
+        }
+
+        DebugLogger.setProgressCallback { show, progress, max ->
+            if (show) {
+                progressBar.visibility = View.VISIBLE
+                progressBar.max = max
+                progressBar.progress = progress
+            } else {
+                progressBar.visibility = View.GONE
+            }
+        }
+
+        DebugLogger.log("Debug logger initialized")
+        DebugLogger.log("Current language: $currentLanguage")
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -323,9 +364,19 @@ class MainActivity : AppCompatActivity() {
             progressBar.visibility = View.GONE
             swipeRefresh.isRefreshing = false
 
-            // Apply translation if language is selected
-            if (currentLanguage != "original") {
-                applyTranslation()
+            // On first page load with saved language, now enable translation and reload
+            // This ensures WebView has synced cookies from disk first
+            if (isFirstPageLoad && currentLanguage != "original") {
+                isFirstPageLoad = false
+                DebugLogger.log("First load complete, applying saved language: $currentLanguage")
+                applyTranslation(reloadPage = true)
+                return
+            }
+            isFirstPageLoad = false
+
+            // Inject POST body capture script as fallback for pages loaded from cache
+            if (htmlTranslator.isEnabled) {
+                view?.evaluateJavascript(htmlTranslator.getBodyCaptureScript(), null)
             }
         }
 
@@ -445,6 +496,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_debug -> {
+                toggleDebugPanel()
+                true
+            }
             R.id.action_translate -> {
                 showTranslateDialog()
                 true
@@ -459,6 +514,13 @@ class MainActivity : AppCompatActivity() {
             }
             else -> super.onOptionsItemSelected(item)
         }
+    }
+
+    private fun toggleDebugPanel() {
+        val isVisible = debugScrollView.visibility == View.VISIBLE
+        val newVisibility = if (isVisible) View.GONE else View.VISIBLE
+        debugScrollView.visibility = newVisibility
+        prefs.edit().putBoolean(PREF_DEBUG_VISIBLE, !isVisible).apply()
     }
 
     private fun showTranslateDialog() {
@@ -498,45 +560,47 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Applies ML Kit translation to the current page
-     */
-    /**
-     * Apply translation using HTTP interception approach.
-     * Downloads models if needed, then reloads page so all content goes through translator.
+     * Apply translation using HTTP response interception.
+     * Downloads models if needed, then reloads page so content goes through translator.
      */
     private fun applyTranslation(reloadPage: Boolean = true) {
         if (currentLanguage == "original") return
 
+        DebugLogger.languageChanged(currentLanguage)
+
         lifecycleScope.launch {
-            // Ensure models are downloaded
-            Toast.makeText(this@MainActivity, "Preparing translation...", Toast.LENGTH_SHORT).show()
+            runOnUiThread {
+                Toast.makeText(this@MainActivity, "Preparing translation...", Toast.LENGTH_SHORT).show()
+            }
+
+            DebugLogger.log("Checking models for '$currentLanguage'...")
 
             val modelsReady = translationManager.ensureModelsReady(currentLanguage) { status ->
                 runOnUiThread {
                     Toast.makeText(this@MainActivity, status, Toast.LENGTH_SHORT).show()
                 }
+                DebugLogger.log("Model status: $status")
             }
 
             if (!modelsReady) {
-                Toast.makeText(this@MainActivity, "Failed to download language models", Toast.LENGTH_SHORT).show()
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "Failed to download language models", Toast.LENGTH_SHORT).show()
+                }
+                DebugLogger.log("ERROR: Models not ready!")
                 return@launch
             }
+
+            DebugLogger.log("Models ready ✓")
 
             // Configure HTML translator
             htmlTranslator.targetLanguage = currentLanguage
             htmlTranslator.isEnabled = true
 
-            // Reload page so all content goes through the translator
+            // Reload page so all HTML goes through the translator
             if (reloadPage) {
                 runOnUiThread {
+                    DebugLogger.refreshTriggered()
                     webView.reload()
-                }
-            } else {
-                // Just translate current page content
-                webViewTranslator?.translatePage(currentLanguage) { status ->
-                    runOnUiThread {
-                        Toast.makeText(this@MainActivity, status, Toast.LENGTH_SHORT).show()
-                    }
                 }
             }
         }

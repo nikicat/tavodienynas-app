@@ -322,9 +322,13 @@ class WebViewTranslator(
                 }
 
                 var debounceTimer = null;
-                var DOM_IDLE_TIMEOUT = 400;
+                var DOM_IDLE_TIMEOUT = 300;
+                var pendingTranslation = false;
 
                 window._translationObserver = new MutationObserver(function(mutations) {
+                    // Skip if we're already waiting for translation
+                    if (pendingTranslation) return;
+
                     // Debounce to avoid too frequent updates
                     if (debounceTimer) clearTimeout(debounceTimer);
                     debounceTimer = setTimeout(function() {
@@ -358,7 +362,10 @@ class WebViewTranslator(
                         }
 
                         if (hasNewTexts && window.$JS_INTERFACE_NAME) {
+                            pendingTranslation = true;
                             window.$JS_INTERFACE_NAME.onNewContentDetected();
+                            // Reset after a delay to allow next batch
+                            setTimeout(function() { pendingTranslation = false; }, 500);
                         }
                     }, DOM_IDLE_TIMEOUT);
                 });

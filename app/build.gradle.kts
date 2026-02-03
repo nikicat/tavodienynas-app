@@ -75,4 +75,7 @@ dependencies {
 
     // HTML parsing for response interception
     implementation("org.jsoup:jsoup:1.17.2")
+
+    // OkHttp for manual POST request reconstruction
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
