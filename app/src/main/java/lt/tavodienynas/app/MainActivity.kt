@@ -469,6 +469,7 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Applies Google Translate to the current page using JavaScript injection
+     * Uses "wait for DOM idle" approach - only translates when DOM has been stable
      */
     private fun applyTranslation() {
         if (currentLanguage == "original") return
@@ -479,48 +480,58 @@ class MainActivity : AppCompatActivity() {
         val script = """
             (function() {
                 var targetLanguage = '${targetLang}';
+                var DOM_IDLE_TIMEOUT = 400; // ms to wait after last DOM change before translating
+
+                // Update target language (used by already-initialized GT)
+                window.gtTargetLanguage = targetLanguage;
+
+                // If GT is already fully set up, just update language and trigger translation
+                if (window.gtSetupComplete && window.gtIsInitialized) {
+                    window.gtScheduleTranslation();
+                    return;
+                }
 
                 // Protect icon elements from translation
-                var iconSelectors = [
-                    '.material-icons',
-                    '.material-icons-outlined',
-                    '.material-icons-round',
-                    '.material-icons-sharp',
-                    '.material-icons-two-tone',
-                    '.material-symbols-outlined',
-                    '.material-symbols-rounded',
-                    '.material-symbols-sharp',
-                    '[class*="icon"]',
-                    '[class*="Icon"]',
-                    '.fa', '.fas', '.far', '.fal', '.fab', '.fad',
-                    '[data-icon]',
-                    'i[class]'
-                ];
+                function protectIcons() {
+                    var iconSelectors = [
+                        '.material-icons',
+                        '.material-icons-outlined',
+                        '.material-icons-round',
+                        '.material-icons-sharp',
+                        '.material-icons-two-tone',
+                        '.material-symbols-outlined',
+                        '.material-symbols-rounded',
+                        '.material-symbols-sharp',
+                        '[class*="icon"]',
+                        '[class*="Icon"]',
+                        '.fa', '.fas', '.far', '.fal', '.fab', '.fad',
+                        '[data-icon]',
+                        'i[class]'
+                    ];
 
-                iconSelectors.forEach(function(selector) {
-                    try {
-                        document.querySelectorAll(selector).forEach(function(el) {
-                            el.classList.add('notranslate');
-                            el.setAttribute('translate', 'no');
-                        });
-                    } catch(e) {}
-                });
+                    iconSelectors.forEach(function(selector) {
+                        try {
+                            document.querySelectorAll(selector).forEach(function(el) {
+                                if (!el.classList.contains('notranslate')) {
+                                    el.classList.add('notranslate');
+                                    el.setAttribute('translate', 'no');
+                                }
+                            });
+                        } catch(e) {}
+                    });
+                }
+                window.gtProtectIcons = protectIcons;
 
-                // Function to hide GT banner (runs repeatedly to catch dynamically added elements)
+                // Function to hide GT banner
                 function hideGTBanner() {
-                    // Hide the iframe banner
                     var frames = document.querySelectorAll('.goog-te-banner-frame, iframe.goog-te-banner-frame');
                     frames.forEach(function(f) {
                         f.style.display = 'none';
                         f.style.height = '0';
                         f.style.visibility = 'hidden';
                     });
-
-                    // Fix body position that GT modifies
                     document.body.style.top = '0px';
                     document.body.style.position = 'relative';
-
-                    // Hide other GT elements
                     var gtElements = document.querySelectorAll('.skiptranslate, #goog-gt-tt, .goog-te-balloon-frame');
                     gtElements.forEach(function(el) {
                         if (!el.querySelector('.goog-te-combo')) {
@@ -528,25 +539,175 @@ class MainActivity : AppCompatActivity() {
                         }
                     });
                 }
+                window.gtHideBanner = hideGTBanner;
 
-                // Set up MutationObserver to hide banner when it appears
-                if (!window.gtObserver) {
-                    window.gtObserver = new MutationObserver(function(mutations) {
-                        hideGTBanner();
-                    });
-                    window.gtObserver.observe(document.body, { childList: true, subtree: true });
+                // Check if a node is part of Google Translate's modifications
+                function isGoogleTranslateNode(node) {
+                    if (!node) return false;
+                    if (node.nodeType === 1) {
+                        var el = node;
+                        var tagName = el.tagName ? el.tagName.toUpperCase() : '';
+                        if (tagName === 'FONT') return true;
+                        if (el.classList && (
+                            el.classList.contains('goog-te-spinner-pos') ||
+                            el.classList.contains('goog-te-balloon') ||
+                            el.classList.contains('goog-te-menu-value') ||
+                            el.classList.contains('goog-te-gadget') ||
+                            el.classList.contains('skiptranslate')
+                        )) return true;
+                        // Use getAttribute for class check (safe for SVG elements)
+                        var classAttr = el.getAttribute ? el.getAttribute('class') : null;
+                        if (classAttr && classAttr.indexOf('goog-te-') >= 0) return true;
+                        if (el.id && el.id.indexOf('goog-gt-') >= 0) return true;
+                        var parent = el.parentElement;
+                        while (parent) {
+                            if (parent.classList && parent.classList.contains('skiptranslate')) return true;
+                            if (parent.id === 'google_translate_element') return true;
+                            parent = parent.parentElement;
+                        }
+                    }
+                    return false;
                 }
 
-                // Check if GT is already loaded
+                // Translation state
+                window.gtIdleTimer = null;
+                window.gtIsTranslating = false;
+                window.gtIsInitialized = false;
+                window.gtHasPendingContent = true; // Start true for initial translation
+                window.gtActivityTimer = null;
+                window.gtCooldownUntil = 0; // Timestamp until which new translations are blocked
+                var GT_ACTIVITY_TIMEOUT = 200; // ms to wait after last GT activity before considering it done
+                var GT_MAX_TIMEOUT = 5000; // max time to wait for GT to finish
+                var GT_COOLDOWN_PERIOD = 500; // ms grace period after translation ends
+
+                // Called when GT activity is detected during translation
+                function onGTActivity() {
+                    if (!window.gtIsTranslating) return;
+
+                    // Reset the activity timer
+                    if (window.gtActivityTimer) {
+                        clearTimeout(window.gtActivityTimer);
+                    }
+                    window.gtActivityTimer = setTimeout(function() {
+                        window.gtActivityTimer = null;
+                        window.gtIsTranslating = false;
+                        // Set cooldown period to ignore stray mutations after GT finishes
+                        window.gtCooldownUntil = Date.now() + GT_COOLDOWN_PERIOD;
+                    }, GT_ACTIVITY_TIMEOUT);
+                }
+
+                // Function to trigger translation (called when DOM is idle)
+                function doTranslate() {
+                    if (window.gtIsTranslating) return;
+
+                    var select = document.querySelector('.goog-te-combo');
+                    if (!select) return;
+
+                    var lang = window.gtTargetLanguage;
+                    var languageChanged = select.value !== lang;
+
+                    // Skip if language is already set AND no new content to translate
+                    if (!languageChanged && !window.gtHasPendingContent) {
+                        return;
+                    }
+
+                    window.gtIsTranslating = true;
+                    window.gtHasPendingContent = false; // Reset pending flag
+                    protectIcons();
+
+                    if (languageChanged) {
+                        // Set to target language
+                        select.value = lang;
+                    }
+                    // Trigger GT to process (either new language or new content)
+                    select.dispatchEvent(new Event('change'));
+
+                    hideGTBanner();
+
+                    // Start activity detection - GT should start modifying DOM soon
+                    onGTActivity();
+
+                    // Failsafe: max timeout in case GT activity detection fails
+                    setTimeout(function() {
+                        if (window.gtActivityTimer) {
+                            clearTimeout(window.gtActivityTimer);
+                            window.gtActivityTimer = null;
+                        }
+                        window.gtIsTranslating = false;
+                    }, GT_MAX_TIMEOUT);
+                }
+
+                // Schedule translation after DOM becomes idle
+                function scheduleTranslation() {
+                    if (window.gtIdleTimer) {
+                        clearTimeout(window.gtIdleTimer);
+                    }
+                    window.gtIdleTimer = setTimeout(function() {
+                        window.gtIdleTimer = null;
+                        if (window.gtIsInitialized) {
+                            doTranslate();
+                        }
+                    }, DOM_IDLE_TIMEOUT);
+                }
+                window.gtScheduleTranslation = scheduleTranslation;
+
+                // Set up MutationObserver to detect DOM changes (only once)
+                if (window.gtObserver) {
+                    window.gtObserver.disconnect();
+                }
+
+                window.gtObserver = new MutationObserver(function(mutations) {
+                    hideGTBanner();
+
+                    var hasGTChanges = false;
+                    var hasRealChanges = false;
+
+                    for (var i = 0; i < mutations.length; i++) {
+                        var mutation = mutations[i];
+
+                        // Skip mutations on GT elements entirely
+                        if (isGoogleTranslateNode(mutation.target)) {
+                            hasGTChanges = true;
+                            continue;
+                        }
+
+                        // Check added nodes
+                        if (mutation.addedNodes.length > 0) {
+                            for (var j = 0; j < mutation.addedNodes.length; j++) {
+                                var node = mutation.addedNodes[j];
+                                if (isGoogleTranslateNode(node)) {
+                                    hasGTChanges = true;
+                                } else if (node.textContent && node.textContent.trim().length > 0) {
+                                    hasRealChanges = true;
+                                }
+                            }
+                        }
+                    }
+
+                    // If GT is making changes, reset the activity timer
+                    if (hasGTChanges && window.gtIsTranslating) {
+                        onGTActivity();
+                    }
+
+                    // If there are real (non-GT) changes, not translating, and not in cooldown
+                    if (hasRealChanges && !window.gtIsTranslating && Date.now() > window.gtCooldownUntil) {
+                        window.gtHasPendingContent = true;
+                        scheduleTranslation();
+                    }
+                });
+
+                window.gtObserver.observe(document.body, {
+                    childList: true,
+                    subtree: true
+                });
+
+                // Check if GT is already loaded (from previous page in same WebView session)
                 if (window.google && window.google.translate) {
-                    // GT already loaded, just change language
+                    window.gtIsInitialized = true;
+                    window.gtSetupComplete = true;
                     var select = document.querySelector('.goog-te-combo');
                     if (select) {
-                        select.value = targetLanguage;
-                        select.dispatchEvent(new Event('change'));
-                        setTimeout(hideGTBanner, 100);
-                        setTimeout(hideGTBanner, 500);
-                        setTimeout(hideGTBanner, 1000);
+                        scheduleTranslation();
                         return;
                     }
                 }
@@ -554,7 +715,6 @@ class MainActivity : AppCompatActivity() {
                 // Remove existing elements for fresh start
                 var existing = document.getElementById('google_translate_element');
                 if (existing) existing.remove();
-
                 var oldScript = document.getElementById('gt_script1');
                 if (oldScript) oldScript.remove();
 
@@ -572,23 +732,20 @@ class MainActivity : AppCompatActivity() {
                         autoDisplay: false
                     }, 'google_translate_element');
 
-                    // Select target language after GT initializes
+                    // Wait for GT to be ready, then schedule first translation
                     var attempts = 0;
-                    var selectLanguage = function() {
+                    var waitForReady = function() {
                         var select = document.querySelector('.goog-te-combo');
                         if (select && select.options.length > 1) {
-                            select.value = targetLanguage;
-                            select.dispatchEvent(new Event('change'));
-                            hideGTBanner();
-                            setTimeout(hideGTBanner, 500);
-                            setTimeout(hideGTBanner, 1000);
-                            setTimeout(hideGTBanner, 2000);
+                            window.gtIsInitialized = true;
+                            window.gtSetupComplete = true;
+                            scheduleTranslation();
                         } else if (attempts < 20) {
                             attempts++;
-                            setTimeout(selectLanguage, 200);
+                            setTimeout(waitForReady, 200);
                         }
                     };
-                    setTimeout(selectLanguage, 500);
+                    setTimeout(waitForReady, 300);
                 };
 
                 // Load Google Translate script
@@ -596,11 +753,6 @@ class MainActivity : AppCompatActivity() {
                 s1.id = 'gt_script1';
                 s1.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
                 document.body.appendChild(s1);
-
-                // Also run hide function periodically for first few seconds
-                setTimeout(hideGTBanner, 1000);
-                setTimeout(hideGTBanner, 2000);
-                setTimeout(hideGTBanner, 3000);
             })();
         """.trimIndent()
 
