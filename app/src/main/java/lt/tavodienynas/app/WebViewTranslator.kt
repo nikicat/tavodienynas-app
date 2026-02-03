@@ -49,6 +49,24 @@ class WebViewTranslator(
         @JavascriptInterface
         fun onTranslationComplete() {
             Log.d(TAG, "Translation injection complete")
+            // Set up observer for future dynamic content
+            scope.launch {
+                withContext(Dispatchers.Main) {
+                    setupDynamicContentObserver()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun onNewContentDetected() {
+            Log.d(TAG, "New content detected, translating...")
+            if (!isTranslating && currentLanguage != null) {
+                scope.launch {
+                    withContext(Dispatchers.Main) {
+                        injectExtractionScript(onlyNew = true)
+                    }
+                }
+            }
         }
     }
 
@@ -157,32 +175,64 @@ class WebViewTranslator(
     /**
      * Inject JavaScript to extract all text nodes
      */
-    private fun injectExtractionScript() {
+    private fun injectExtractionScript(onlyNew: Boolean = false) {
         val script = """
             (function() {
                 var texts = [];
-                var nodeId = 0;
+                var nodeId = window._translationNodeId || 0;
 
                 // Skip these elements
                 var skipTags = ['SCRIPT', 'STYLE', 'NOSCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'SVG', 'MATH'];
-                var skipClasses = ['notranslate', 'material-icons', 'material-symbols-outlined'];
+
+                // Icon-related classes to skip
+                var iconClasses = [
+                    'notranslate',
+                    'material-icons',
+                    'material-icons-outlined',
+                    'material-icons-round',
+                    'material-icons-sharp',
+                    'material-icons-two-tone',
+                    'material-symbols-outlined',
+                    'material-symbols-rounded',
+                    'material-symbols-sharp',
+                    'fa', 'fas', 'far', 'fal', 'fab', 'fad'
+                ];
 
                 function shouldSkip(element) {
                     if (!element) return true;
                     if (skipTags.indexOf(element.tagName) >= 0) return true;
                     if (element.getAttribute('translate') === 'no') return true;
+                    if (element.getAttribute('data-icon')) return true;
+
+                    // Check tag name for icons
+                    if (element.tagName === 'I') return true;
+
+                    // Check classList
                     if (element.classList) {
-                        for (var i = 0; i < skipClasses.length; i++) {
-                            if (element.classList.contains(skipClasses[i])) return true;
+                        for (var i = 0; i < iconClasses.length; i++) {
+                            if (element.classList.contains(iconClasses[i])) return true;
+                        }
+                        // Check for any class containing 'icon'
+                        for (var i = 0; i < element.classList.length; i++) {
+                            var cls = element.classList[i].toLowerCase();
+                            if (cls.indexOf('icon') >= 0) return true;
                         }
                     }
+
+                    // Check className attribute for SVG elements
+                    var classAttr = element.getAttribute ? element.getAttribute('class') : null;
+                    if (classAttr && classAttr.toLowerCase().indexOf('icon') >= 0) return true;
+
                     return false;
                 }
 
-                function extractTexts(node) {
+                function extractTexts(node, onlyNew) {
                     if (!node) return;
 
                     if (node.nodeType === Node.TEXT_NODE) {
+                        // Skip if already processed (unless we want all)
+                        if (onlyNew && node._translationId) return;
+
                         var text = node.textContent.trim();
                         if (text.length > 0) {
                             var id = 'txt_' + (nodeId++);
@@ -196,15 +246,18 @@ class WebViewTranslator(
                         if (shouldSkip(node)) return;
 
                         for (var i = 0; i < node.childNodes.length; i++) {
-                            extractTexts(node.childNodes[i]);
+                            extractTexts(node.childNodes[i], onlyNew);
                         }
                     }
                 }
 
-                extractTexts(document.body);
+                extractTexts(document.body, ${onlyNew});
+
+                // Save nodeId for incremental extractions
+                window._translationNodeId = nodeId;
 
                 // Send to Android
-                if (window.$JS_INTERFACE_NAME) {
+                if (window.$JS_INTERFACE_NAME && texts.length > 0) {
                     window.$JS_INTERFACE_NAME.onTextsExtracted(JSON.stringify(texts));
                 }
             })();
@@ -259,7 +312,7 @@ class WebViewTranslator(
     /**
      * Set up observer for dynamic content (call after page load)
      */
-    fun setupDynamicContentObserver() {
+    private fun setupDynamicContentObserver() {
         if (currentLanguage == null) return
 
         val script = """
@@ -269,34 +322,45 @@ class WebViewTranslator(
                 }
 
                 var debounceTimer = null;
+                var DOM_IDLE_TIMEOUT = 400;
 
                 window._translationObserver = new MutationObserver(function(mutations) {
                     // Debounce to avoid too frequent updates
                     if (debounceTimer) clearTimeout(debounceTimer);
                     debounceTimer = setTimeout(function() {
-                        // Check if there are new text nodes to translate
+                        // Check if there are new untranslated text nodes
                         var hasNewTexts = false;
                         for (var i = 0; i < mutations.length; i++) {
                             var mutation = mutations[i];
                             if (mutation.addedNodes.length > 0) {
                                 for (var j = 0; j < mutation.addedNodes.length; j++) {
                                     var node = mutation.addedNodes[j];
-                                    if (node.nodeType === Node.TEXT_NODE ||
-                                        (node.nodeType === Node.ELEMENT_NODE && node.textContent.trim())) {
+                                    // Check for text node without translation ID
+                                    if (node.nodeType === Node.TEXT_NODE && !node._translationId && node.textContent.trim()) {
                                         hasNewTexts = true;
                                         break;
                                     }
+                                    // Check for element with untranslated text content
+                                    if (node.nodeType === Node.ELEMENT_NODE) {
+                                        var walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null, false);
+                                        var textNode;
+                                        while (textNode = walker.nextNode()) {
+                                            if (!textNode._translationId && textNode.textContent.trim()) {
+                                                hasNewTexts = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (hasNewTexts) break;
                                 }
                             }
                             if (hasNewTexts) break;
                         }
 
-                        if (hasNewTexts) {
-                            // Re-extract and translate new content
-                            // This will be handled by the existing extraction script
-                            console.log('New content detected, re-translating...');
+                        if (hasNewTexts && window.$JS_INTERFACE_NAME) {
+                            window.$JS_INTERFACE_NAME.onNewContentDetected();
                         }
-                    }, 500);
+                    }, DOM_IDLE_TIMEOUT);
                 });
 
                 window._translationObserver.observe(document.body, {
@@ -304,7 +368,7 @@ class WebViewTranslator(
                     subtree: true
                 });
             })();
-        """.trimIndent()
+        """.trimIndent().replace("\$JS_INTERFACE_NAME", JS_INTERFACE_NAME)
 
         webView.evaluateJavascript(script, null)
     }
