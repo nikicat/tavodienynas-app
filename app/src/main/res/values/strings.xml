@@ -13,8 +13,7 @@
     <string name="lang_english">English</string>
     <string name="lang_russian">Russian</string>
     <string name="lang_polish">Polish</string>
-    <string name="lang_german">German</string>
-    <string name="lang_french">French</string>
+    <string name="lang_ukrainian">Ukrainian</string>
 
     <!-- Security messages -->
     <string name="blocked_url_message">Access to %1$s is not allowed</string>

@@ -13,8 +13,7 @@
     <string name="lang_english">Anglų</string>
     <string name="lang_russian">Rusų</string>
     <string name="lang_polish">Lenkų</string>
-    <string name="lang_german">Vokiečių</string>
-    <string name="lang_french">Prancūzų</string>
+    <string name="lang_ukrainian">Ukrainiečių</string>
 
     <!-- Security messages -->
     <string name="blocked_url_message">Prieiga prie %1$s nėra leidžiama</string>

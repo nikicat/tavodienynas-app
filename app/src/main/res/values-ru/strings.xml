@@ -13,8 +13,7 @@
     <string name="lang_english">Английский</string>
     <string name="lang_russian">Русский</string>
     <string name="lang_polish">Польский</string>
-    <string name="lang_german">Немецкий</string>
-    <string name="lang_french">Французский</string>
+    <string name="lang_ukrainian">Украинский</string>
 
     <!-- Security messages -->
     <string name="blocked_url_message">Доступ к %1$s запрещён</string>

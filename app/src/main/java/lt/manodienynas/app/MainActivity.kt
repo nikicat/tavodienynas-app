@@ -442,10 +442,9 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.lang_english),
             getString(R.string.lang_russian),
             getString(R.string.lang_polish),
-            getString(R.string.lang_german),
-            getString(R.string.lang_french)
+            getString(R.string.lang_ukrainian)
         )
-        val languageCodes = arrayOf("original", "en", "ru", "pl", "de", "fr")
+        val languageCodes = arrayOf("original", "en", "ru", "pl", "uk")
 
         val currentIndex = languageCodes.indexOf(currentLanguage).coerceAtLeast(0)
 
@@ -569,7 +568,7 @@ class MainActivity : AppCompatActivity() {
                 window.googleTranslateElementInit = function() {
                     new google.translate.TranslateElement({
                         pageLanguage: 'lt',
-                        includedLanguages: 'en,ru,pl,de,fr',
+                        includedLanguages: 'en,ru,pl,uk',
                         autoDisplay: false
                     }, 'google_translate_element');
 
