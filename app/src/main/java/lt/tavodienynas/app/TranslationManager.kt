@@ -1,0 +1,236 @@
+package lt.tavodienynas.app
+
+import android.content.Context
+import android.util.Log
+import com.google.mlkit.common.model.DownloadConditions
+import com.google.mlkit.common.model.RemoteModelManager
+import com.google.mlkit.nl.translate.TranslateLanguage
+import com.google.mlkit.nl.translate.TranslateRemoteModel
+import com.google.mlkit.nl.translate.Translation
+import com.google.mlkit.nl.translate.Translator
+import com.google.mlkit.nl.translate.TranslatorOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+
+/**
+ * Manages ML Kit translation models and provides translation functionality.
+ * Supports Lithuanian as source language with English, Russian, Polish, Ukrainian as targets.
+ */
+class TranslationManager(private val context: Context) {
+
+    companion object {
+        private const val TAG = "TranslationManager"
+
+        // Language code mapping: our codes -> ML Kit codes
+        val LANGUAGE_MAP = mapOf(
+            "lt" to TranslateLanguage.LITHUANIAN,
+            "en" to TranslateLanguage.ENGLISH,
+            "ru" to TranslateLanguage.RUSSIAN,
+            "pl" to TranslateLanguage.POLISH,
+            "uk" to TranslateLanguage.UKRAINIAN
+        )
+
+        // Source language is always Lithuanian
+        const val SOURCE_LANGUAGE = "lt"
+    }
+
+    private val modelManager = RemoteModelManager.getInstance()
+    private var currentTranslator: Translator? = null
+    private var currentTargetLanguage: String? = null
+
+    /**
+     * Check if a language model is downloaded
+     */
+    suspend fun isModelDownloaded(languageCode: String): Boolean {
+        val mlKitCode = LANGUAGE_MAP[languageCode] ?: return false
+        val model = TranslateRemoteModel.Builder(mlKitCode).build()
+
+        return suspendCancellableCoroutine { cont ->
+            modelManager.isModelDownloaded(model)
+                .addOnSuccessListener { isDownloaded ->
+                    cont.resume(isDownloaded)
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Failed to check model status: ${e.message}")
+                    cont.resume(false)
+                }
+        }
+    }
+
+    /**
+     * Download a language model
+     */
+    suspend fun downloadModel(languageCode: String, onProgress: ((String) -> Unit)? = null): Boolean {
+        val mlKitCode = LANGUAGE_MAP[languageCode] ?: return false
+        val model = TranslateRemoteModel.Builder(mlKitCode).build()
+
+        onProgress?.invoke("Downloading $languageCode model...")
+
+        val conditions = DownloadConditions.Builder()
+            .requireWifi()
+            .build()
+
+        return suspendCancellableCoroutine { cont ->
+            modelManager.download(model, conditions)
+                .addOnSuccessListener {
+                    Log.d(TAG, "Model downloaded: $languageCode")
+                    onProgress?.invoke("Download complete")
+                    cont.resume(true)
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Failed to download model: ${e.message}")
+                    onProgress?.invoke("Download failed: ${e.message}")
+                    cont.resume(false)
+                }
+        }
+    }
+
+    /**
+     * Delete a language model to free space
+     */
+    suspend fun deleteModel(languageCode: String): Boolean {
+        val mlKitCode = LANGUAGE_MAP[languageCode] ?: return false
+        val model = TranslateRemoteModel.Builder(mlKitCode).build()
+
+        return suspendCancellableCoroutine { cont ->
+            modelManager.deleteDownloadedModel(model)
+                .addOnSuccessListener {
+                    Log.d(TAG, "Model deleted: $languageCode")
+                    cont.resume(true)
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Failed to delete model: ${e.message}")
+                    cont.resume(false)
+                }
+        }
+    }
+
+    /**
+     * Get list of downloaded models
+     */
+    suspend fun getDownloadedModels(): List<String> {
+        return suspendCancellableCoroutine { cont ->
+            modelManager.getDownloadedModels(TranslateRemoteModel::class.java)
+                .addOnSuccessListener { models ->
+                    val codes = models.mapNotNull { model ->
+                        LANGUAGE_MAP.entries.find { it.value == model.language }?.key
+                    }
+                    cont.resume(codes)
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Failed to get downloaded models: ${e.message}")
+                    cont.resume(emptyList())
+                }
+        }
+    }
+
+    /**
+     * Ensure required models are downloaded for translation
+     */
+    suspend fun ensureModelsReady(targetLanguage: String, onProgress: ((String) -> Unit)? = null): Boolean {
+        // Always need Lithuanian (source) and target language
+        val languagesToCheck = listOf(SOURCE_LANGUAGE, targetLanguage)
+
+        for (lang in languagesToCheck) {
+            if (!isModelDownloaded(lang)) {
+                onProgress?.invoke("Downloading ${getLanguageName(lang)} model...")
+                if (!downloadModel(lang, onProgress)) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    /**
+     * Get or create a translator for the target language
+     */
+    private fun getTranslator(targetLanguage: String): Translator {
+        if (currentTargetLanguage == targetLanguage && currentTranslator != null) {
+            return currentTranslator!!
+        }
+
+        // Close previous translator
+        currentTranslator?.close()
+
+        val sourceLang = LANGUAGE_MAP[SOURCE_LANGUAGE]!!
+        val targetLang = LANGUAGE_MAP[targetLanguage]!!
+
+        val options = TranslatorOptions.Builder()
+            .setSourceLanguage(sourceLang)
+            .setTargetLanguage(targetLang)
+            .build()
+
+        currentTranslator = Translation.getClient(options)
+        currentTargetLanguage = targetLanguage
+        return currentTranslator!!
+    }
+
+    /**
+     * Translate a single text string
+     */
+    suspend fun translate(text: String, targetLanguage: String): String {
+        if (text.isBlank()) return text
+
+        val translator = getTranslator(targetLanguage)
+
+        return suspendCancellableCoroutine { cont ->
+            translator.translate(text)
+                .addOnSuccessListener { translatedText ->
+                    cont.resume(translatedText)
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Translation failed: ${e.message}")
+                    cont.resumeWithException(e)
+                }
+        }
+    }
+
+    /**
+     * Translate multiple texts in batch (more efficient)
+     */
+    suspend fun translateBatch(texts: List<String>, targetLanguage: String): List<String> {
+        if (texts.isEmpty()) return emptyList()
+
+        return withContext(Dispatchers.IO) {
+            texts.map { text ->
+                if (text.isBlank()) {
+                    text
+                } else {
+                    try {
+                        translate(text, targetLanguage)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Batch translation failed for text: ${e.message}")
+                        text // Return original on failure
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Get human-readable language name
+     */
+    fun getLanguageName(code: String): String {
+        return when (code) {
+            "lt" -> "Lithuanian"
+            "en" -> "English"
+            "ru" -> "Russian"
+            "pl" -> "Polish"
+            "uk" -> "Ukrainian"
+            else -> code
+        }
+    }
+
+    /**
+     * Clean up resources
+     */
+    fun close() {
+        currentTranslator?.close()
+        currentTranslator = null
+        currentTargetLanguage = null
+    }
+}
