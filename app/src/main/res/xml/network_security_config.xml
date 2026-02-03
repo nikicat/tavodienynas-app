@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Allow connections to manodienynas.lt and trusted resource hosts -->
+    <domain-config cleartextTrafficPermitted="false">
+        <!-- Main site -->
+        <domain includeSubdomains="true">manodienynas.lt</domain>
+        <!-- Google Fonts & Icons -->
+        <domain includeSubdomains="true">fonts.googleapis.com</domain>
+        <domain includeSubdomains="true">fonts.gstatic.com</domain>
+        <!-- Google Translate -->
+        <domain includeSubdomains="true">translate.google.com</domain>
+        <domain includeSubdomains="true">translate.googleapis.com</domain>
+        <domain includeSubdomains="true">translate-pa.googleapis.com</domain>
+        <domain includeSubdomains="true">www.gstatic.com</domain>
+        <!-- Common CDNs -->
+        <domain includeSubdomains="true">cdnjs.cloudflare.com</domain>
+        <domain includeSubdomains="true">cdn.jsdelivr.net</domain>
+        <domain includeSubdomains="true">unpkg.com</domain>
+        <!-- Google APIs -->
+        <domain includeSubdomains="true">ajax.googleapis.com</domain>
+        <domain includeSubdomains="true">www.googleapis.com</domain>
+    </domain-config>
+
+    <!-- Block all other domains by default -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>

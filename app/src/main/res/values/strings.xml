@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mano Dienynas</string>
+
+    <!-- Menu actions -->
+    <string name="action_translate">Translate</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_home">Home</string>
+
+    <!-- Translation dialog -->
+    <string name="translate_title">Translate page</string>
+    <string name="lang_original">Original (Lithuanian)</string>
+    <string name="lang_english">English</string>
+    <string name="lang_russian">Russian</string>
+    <string name="lang_polish">Polish</string>
+    <string name="lang_german">German</string>
+    <string name="lang_french">French</string>
+
+    <!-- Security messages -->
+    <string name="blocked_url_message">Access to %1$s is not allowed</string>
+
+    <!-- Download messages -->
+    <string name="download_started">Downloading: %1$s</string>
+    <string name="download_description">Downloading file</string>
+    <string name="download_failed">Download failed</string>
+    <string name="no_app_to_open">No app available to open this file</string>
+    <string name="open_file_failed">Could not open file</string>
+</resources>

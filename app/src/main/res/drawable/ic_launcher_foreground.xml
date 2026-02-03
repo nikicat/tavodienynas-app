@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Stylized "d" with speech bubble, similar to manodienynas logo -->
+    <group
+        android:translateX="24"
+        android:translateY="24">
+
+        <!-- Main "d" shape - vertical stem -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M38,12 L38,48 C38,53.5 33.5,58 28,58 L22,58 C16.5,58 12,53.5 12,48 L12,32 C12,26.5 16.5,22 22,22 L28,22 L28,12 C28,9.8 29.8,8 32,8 L34,8 C36.2,8 38,9.8 38,12 Z"/>
+
+        <!-- Inner circle cutout for "d" -->
+        <path
+            android:fillColor="#1976D2"
+            android:pathData="M28,32 C28,29.8 26.2,28 24,28 C21.8,28 20,29.8 20,32 L20,40 C20,42.2 21.8,44 24,44 C26.2,44 28,42.2 28,40 L28,32 Z"/>
+
+        <!-- Speech bubble tail -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M12,44 L6,52 L14,48 Z"/>
+
+    </group>
+</vector>

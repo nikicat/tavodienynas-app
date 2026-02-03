@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mano Dienynas</string>
+
+    <!-- Menu actions -->
+    <string name="action_translate">Versti</string>
+    <string name="action_refresh">Atnaujinti</string>
+    <string name="action_home">Pradinis</string>
+
+    <!-- Translation dialog -->
+    <string name="translate_title">Versti puslapį</string>
+    <string name="lang_original">Originalas (lietuvių)</string>
+    <string name="lang_english">Anglų</string>
+    <string name="lang_russian">Rusų</string>
+    <string name="lang_polish">Lenkų</string>
+    <string name="lang_german">Vokiečių</string>
+    <string name="lang_french">Prancūzų</string>
+
+    <!-- Security messages -->
+    <string name="blocked_url_message">Prieiga prie %1$s nėra leidžiama</string>
+
+    <!-- Download messages -->
+    <string name="download_started">Atsisiunčiama: %1$s</string>
+    <string name="download_description">Atsisiunčiamas failas</string>
+    <string name="download_failed">Atsisiuntimas nepavyko</string>
+    <string name="no_app_to_open">Nėra programos šiam failui atidaryti</string>
+    <string name="open_file_failed">Nepavyko atidaryti failo</string>
+</resources>
