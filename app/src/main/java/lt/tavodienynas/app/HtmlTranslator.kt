@@ -233,6 +233,18 @@ class HtmlTranslator(
                 )
             }
 
+            // Verify content actually looks like HTML (not empty or non-HTML with wrong content-type)
+            val charset = try { Charset.forName(response.encoding) } catch (e: Exception) { Charsets.UTF_8 }
+            if (!looksLikeHtml(response.content, charset)) {
+                Log.d(TAG, "Content doesn't look like HTML for $url (${response.content.size} bytes)")
+                DebugLogger.log("⏭️ SKIP: not HTML content ($url)")
+                return WebResourceResponse(
+                    response.mimeType,
+                    response.encoding,
+                    ByteArrayInputStream(response.content)
+                )
+            }
+
             Log.d(TAG, "Translating HTML for $url (${response.content.size} bytes)")
             DebugLogger.translateStart(url, response.content.size)
             val startTime = System.currentTimeMillis()
@@ -388,6 +400,19 @@ class HtmlTranslator(
         if (mimeType == null) return false
         val lower = mimeType.lowercase()
         return lower.contains("text/html") || lower.contains("application/xhtml")
+    }
+
+    // Regex to match HTML: optional whitespace, then <tag or <!doctype/comment
+    private val HTML_START_PATTERN = Regex("^\\s*<[a-zA-Z!]")
+
+    /**
+     * Check if content actually looks like HTML (starts with optional whitespace then an HTML tag).
+     * This prevents translating empty responses or non-HTML content with text/html mime type.
+     */
+    private fun looksLikeHtml(content: ByteArray, charset: Charset): Boolean {
+        if (content.isEmpty()) return false
+        val preview = String(content, 0, minOf(content.size, 500), charset)
+        return HTML_START_PATTERN.containsMatchIn(preview)
     }
 
     private fun extractCharset(contentType: String?): String? {
