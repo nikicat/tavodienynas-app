@@ -73,6 +73,12 @@ class HtmlTranslator(
 
         // Classes that indicate day-of-week elements (use hardcoded translation)
         private val DAY_CONTAINER_CLASSES = setOf("swiper-day")
+
+        // IDs where text content should be skipped but title attributes translated
+        private val SKIP_TEXT_IDS = setOf("languages-block")
+
+        // Attributes to translate
+        private val TRANSLATABLE_ATTRS = setOf("title", "alt", "placeholder")
     }
 
     var targetLanguage: String? = null
@@ -456,9 +462,10 @@ class HtmlTranslator(
         return try {
             val doc = Jsoup.parse(html)
             val collectedNodes = mutableListOf<CollectedTextNode>()
-            collectTextNodes(doc.body(), collectedNodes, isDayContext = false)
+            val collectedAttrs = mutableListOf<CollectedAttribute>()
+            collectTextNodes(doc.body(), collectedNodes, collectedAttrs, isDayContext = false, skipTextContext = false)
 
-            if (collectedNodes.isEmpty()) return html
+            if (collectedNodes.isEmpty() && collectedAttrs.isEmpty()) return html
 
             // Separate day nodes from regular nodes
             val dayNodes = collectedNodes.filter { it.isDayNode }
@@ -475,25 +482,29 @@ class HtmlTranslator(
                 collected.node.text(leading + translated + trailing)
             }
 
-            // Filter regular texts for ML Kit translation
-            val textsToTranslate = regularNodes
+            // Collect all texts for ML Kit translation (regular nodes + attributes)
+            val regularTexts = regularNodes
                 .map { it.node.text().trim() }
                 .filter { it.length >= MIN_TEXT_LENGTH && !it.all { c -> c.isDigit() || c.isWhitespace() } }
 
-            if (textsToTranslate.isNotEmpty()) {
+            val attrTexts = collectedAttrs.map { it.originalValue.trim() }
+
+            val allTextsToTranslate = regularTexts + attrTexts
+
+            if (allTextsToTranslate.isNotEmpty()) {
                 // Show progress bar
-                val totalBatches = (textsToTranslate.size + BATCH_SIZE - 1) / BATCH_SIZE
+                val totalBatches = (allTextsToTranslate.size + BATCH_SIZE - 1) / BATCH_SIZE
                 var completedBatches = 0
                 DebugLogger.showProgress(0, totalBatches)
 
                 val translatedTexts = mutableListOf<String>()
-                textsToTranslate.chunked(BATCH_SIZE).forEach { batch ->
+                allTextsToTranslate.chunked(BATCH_SIZE).forEach { batch ->
                     translatedTexts.addAll(translationManager.translateBatch(batch, lang))
                     completedBatches++
                     DebugLogger.showProgress(completedBatches, totalBatches)
                 }
 
-                // Apply translations to regular nodes
+                // Apply translations to regular text nodes
                 var idx = 0
                 for (collected in regularNodes) {
                     val originalText = collected.node.text().trim()
@@ -504,6 +515,14 @@ class HtmlTranslator(
                         val leading = fullText.takeWhile { it.isWhitespace() }
                         val trailing = fullText.takeLastWhile { it.isWhitespace() }
                         collected.node.text(leading + translatedTexts[idx] + trailing)
+                        idx++
+                    }
+                }
+
+                // Apply translations to attributes
+                for (collected in collectedAttrs) {
+                    if (idx < translatedTexts.size) {
+                        collected.element.attr(collected.attrName, translatedTexts[idx])
                         idx++
                     }
                 }
@@ -531,7 +550,20 @@ class HtmlTranslator(
         val isDayNode: Boolean
     )
 
-    private fun collectTextNodes(element: Element?, nodes: MutableList<CollectedTextNode>, isDayContext: Boolean) {
+    /** Wrapper for element attribute to translate */
+    private data class CollectedAttribute(
+        val element: Element,
+        val attrName: String,
+        val originalValue: String
+    )
+
+    private fun collectTextNodes(
+        element: Element?,
+        textNodes: MutableList<CollectedTextNode>,
+        attributes: MutableList<CollectedAttribute>,
+        isDayContext: Boolean,
+        skipTextContext: Boolean
+    ) {
         if (element == null) return
         if (SKIP_TAGS.contains(element.tagName().lowercase())) return
         if (element.attr("translate") == "no") return
@@ -541,12 +573,23 @@ class HtmlTranslator(
         // Check if this element is a day container
         val isDay = isDayContext || DAY_CONTAINER_CLASSES.any { element.hasClass(it) }
 
+        // Check if we should skip text content (but still translate attributes)
+        val skipText = skipTextContext || SKIP_TEXT_IDS.contains(element.id())
+
+        // Collect translatable attributes
+        for (attr in TRANSLATABLE_ATTRS) {
+            val value = element.attr(attr)
+            if (value.isNotBlank() && value.length >= MIN_TEXT_LENGTH) {
+                attributes.add(CollectedAttribute(element, attr, value))
+            }
+        }
+
         for (child in element.childNodes()) {
             when (child) {
-                is TextNode -> if (child.text().trim().isNotEmpty()) {
-                    nodes.add(CollectedTextNode(child, isDay))
+                is TextNode -> if (!skipText && child.text().trim().isNotEmpty()) {
+                    textNodes.add(CollectedTextNode(child, isDay))
                 }
-                is Element -> collectTextNodes(child, nodes, isDay)
+                is Element -> collectTextNodes(child, textNodes, attributes, isDay, skipText)
             }
         }
     }
