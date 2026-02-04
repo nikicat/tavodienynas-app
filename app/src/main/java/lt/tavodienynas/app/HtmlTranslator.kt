@@ -1,9 +1,14 @@
 package lt.tavodienynas.app
 
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.Headers.Companion.toHeaders
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -30,6 +35,8 @@ class HtmlTranslator(
         private const val BATCH_SIZE = 10
         private const val MIN_TEXT_LENGTH = 2
         private const val MAX_REDIRECTS = 5
+        private const val CLEANUP_DELAY_MS = 1000L
+        private const val CACHE_MAX_AGE_DAYS = 7
         const val JS_INTERFACE_NAME = "PostBodyCapture"
 
         // Elements to skip during translation
@@ -49,6 +56,11 @@ class HtmlTranslator(
 
     // Store captured POST bodies
     private val postBodies = ConcurrentHashMap<String, PostBodyInfo>()
+
+    // Idle detection for cache cleanup
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val cleanupRunnable = Runnable { performCacheCleanup() }
+    private val cleanupScope = CoroutineScope(Dispatchers.IO)
 
     // OkHttp client - NO automatic redirect following (we handle manually)
     private val okHttpClient = OkHttpClient.Builder()
@@ -414,6 +426,9 @@ class HtmlTranslator(
     private suspend fun translateHtml(html: String): String {
         val lang = targetLanguage ?: return html
 
+        // Reset cache stats for this page
+        translationManager.cache.resetBatchStats()
+
         return try {
             val doc = Jsoup.parse(html)
             val textNodes = mutableListOf<TextNode>()
@@ -453,6 +468,13 @@ class HtmlTranslator(
             }
 
             DebugLogger.hideProgress()
+
+            // Log cache statistics
+            DebugLogger.log("📊 ${translationManager.cache.getBatchStatsLog()}")
+
+            // Schedule cache cleanup after idle period
+            scheduleCleanup()
+
             doc.outerHtml()
         } catch (e: Exception) {
             Log.e(TAG, "Translation failed: ${e.message}")
@@ -488,6 +510,29 @@ class HtmlTranslator(
         val now = System.currentTimeMillis()
         postBodies.entries.filter { now - it.value.timestamp > 30000 }
             .forEach { postBodies.remove(it.key) }
+    }
+
+    /**
+     * Schedule cache cleanup after idle period
+     */
+    private fun scheduleCleanup() {
+        mainHandler.removeCallbacks(cleanupRunnable)
+        mainHandler.postDelayed(cleanupRunnable, CLEANUP_DELAY_MS)
+    }
+
+    /**
+     * Perform cache cleanup in background
+     */
+    private fun performCacheCleanup() {
+        cleanupScope.launch {
+            try {
+                DebugLogger.log("🧹 Starting cache cleanup...")
+                val stats = translationManager.cache.cleanup(CACHE_MAX_AGE_DAYS)
+                DebugLogger.log("🧹 Cleanup done: ${stats.totalEntries} entries, ${stats.formatSize()}, removed ${stats.removedEntries}, took ${stats.durationMs}ms")
+            } catch (e: Exception) {
+                Log.e(TAG, "Cache cleanup failed: ${e.message}")
+            }
+        }
     }
 
     private data class FetchResponse(

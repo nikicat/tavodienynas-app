@@ -22,6 +22,7 @@ import kotlin.coroutines.resumeWithException
 /**
  * Manages ML Kit translation models and provides translation functionality.
  * Supports Lithuanian as source language with English, Russian, Polish, Ukrainian as targets.
+ * Uses SQLite cache for translated texts to improve performance.
  */
 class TranslationManager(private val context: Context) {
 
@@ -44,6 +45,9 @@ class TranslationManager(private val context: Context) {
     private val modelManager = RemoteModelManager.getInstance()
     private var currentTranslator: Translator? = null
     private var currentTargetLanguage: String? = null
+
+    // Translation cache
+    val cache = TranslationCache(context)
 
     /**
      * Check if a language model is downloaded
@@ -174,11 +178,29 @@ class TranslationManager(private val context: Context) {
     }
 
     /**
-     * Translate a single text string
+     * Translate a single text string (checks cache first)
      */
     suspend fun translate(text: String, targetLanguage: String): String {
         if (text.isBlank()) return text
 
+        // Check cache first
+        cache.get(text, targetLanguage)?.let { cached ->
+            return cached
+        }
+
+        // Not in cache, translate with ML Kit
+        val translated = translateWithMlKit(text, targetLanguage)
+
+        // Store in cache
+        cache.put(text, targetLanguage, translated)
+
+        return translated
+    }
+
+    /**
+     * Translate using ML Kit (no cache)
+     */
+    private suspend fun translateWithMlKit(text: String, targetLanguage: String): String {
         val translator = getTranslator(targetLanguage)
 
         return suspendCancellableCoroutine { cont ->
@@ -243,5 +265,6 @@ class TranslationManager(private val context: Context) {
         currentTranslator?.close()
         currentTranslator = null
         currentTargetLanguage = null
+        cache.close()
     }
 }
