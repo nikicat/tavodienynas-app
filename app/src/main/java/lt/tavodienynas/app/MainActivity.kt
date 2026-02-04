@@ -88,6 +88,24 @@ class MainActivity : AppCompatActivity() {
             "ajax.googleapis.com",
             "www.googleapis.com"
         )
+
+        // Website supported languages in URL path
+        private val SITE_LANGUAGES = setOf("en", "ua", "lt", "ru")
+
+        // Regex to match language in URL path: /1/{lang}/ or /{lang}/
+        private val URL_LANG_PATTERN = Regex("^(https://[^/]+/)(?:(\\d+)/)?(${ SITE_LANGUAGES.joinToString("|") })(/.*)?$")
+
+        /**
+         * Map app language code to website URL language code
+         */
+        fun appLangToUrlLang(appLang: String): String {
+            return when (appLang) {
+                "original" -> "lt"
+                "uk" -> "ua"  // Ukrainian: app uses "uk", site uses "ua"
+                "pl" -> "en"  // Polish not supported by site, use English
+                else -> appLang  // en, ru stay the same
+            }
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -318,6 +336,32 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * Replace language in URL path to match app's selected language.
+     * URL pattern: https://www.manodienynas.lt/1/{lang}/page/...
+     * Returns modified URL or original if no language found in path.
+     */
+    private fun adjustUrlLanguage(url: String): String {
+        val targetLang = appLangToUrlLang(currentLanguage)
+        val match = URL_LANG_PATTERN.matchEntire(url) ?: return url
+
+        val baseUrl = match.groupValues[1]        // https://www.manodienynas.lt/
+        val numPrefix = match.groupValues[2]      // "1" or empty
+        val urlLang = match.groupValues[3]        // en, ua, lt, ru
+        val rest = match.groupValues[4]           // /page/... or empty
+
+        // If URL already has correct language, return as-is
+        if (urlLang == targetLang) return url
+
+        DebugLogger.log("🌐 URL lang '$urlLang' -> '$targetLang'")
+
+        return if (numPrefix.isNotEmpty()) {
+            "$baseUrl$numPrefix/$targetLang$rest"
+        } else {
+            "$baseUrl$targetLang$rest"
+        }
+    }
+
+    /**
      * Secure WebViewClient that blocks navigation to external sites
      */
     private inner class SecureWebViewClient : WebViewClient() {
@@ -325,26 +369,38 @@ class MainActivity : AppCompatActivity() {
         override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
             val url = request?.url?.toString() ?: return true
 
-            return if (isAllowedNavigation(url)) {
-                // Allow navigation within manodienynas.lt
-                false
-            } else {
-                // Block all external URLs
+            if (!isAllowedNavigation(url)) {
                 showBlockedUrlMessage(url)
-                true
+                return true
             }
+
+            // Adjust URL language if needed
+            val adjustedUrl = adjustUrlLanguage(url)
+            if (adjustedUrl != url) {
+                view?.loadUrl(adjustedUrl)
+                return true
+            }
+
+            return false
         }
 
         @Deprecated("Deprecated in API 24, but needed for older devices")
         override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
             url ?: return true
 
-            return if (isAllowedNavigation(url)) {
-                false
-            } else {
+            if (!isAllowedNavigation(url)) {
                 showBlockedUrlMessage(url)
-                true
+                return true
             }
+
+            // Adjust URL language if needed
+            val adjustedUrl = adjustUrlLanguage(url)
+            if (adjustedUrl != url) {
+                view?.loadUrl(adjustedUrl)
+                return true
+            }
+
+            return false
         }
 
         override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
@@ -546,10 +602,16 @@ class MainActivity : AppCompatActivity() {
                 prefs.edit().putString(PREF_LANGUAGE, currentLanguage).apply()
 
                 if (currentLanguage == "original") {
-                    // Disable HTML translation and reload
+                    // Disable HTML translation and load with Lithuanian URL
                     htmlTranslator.isEnabled = false
                     htmlTranslator.targetLanguage = null
-                    webView.reload()
+                    val currentUrl = webView.url ?: BASE_URL
+                    val adjustedUrl = adjustUrlLanguage(currentUrl)
+                    if (adjustedUrl != currentUrl) {
+                        webView.loadUrl(adjustedUrl)
+                    } else {
+                        webView.reload()
+                    }
                 } else {
                     applyTranslation(languageChanged)
                 }
@@ -596,11 +658,17 @@ class MainActivity : AppCompatActivity() {
             htmlTranslator.targetLanguage = currentLanguage
             htmlTranslator.isEnabled = true
 
-            // Reload page so all HTML goes through the translator
+            // Load page with correct language in URL path
             if (reloadPage) {
                 runOnUiThread {
                     DebugLogger.refreshTriggered()
-                    webView.reload()
+                    val currentUrl = webView.url ?: BASE_URL
+                    val adjustedUrl = adjustUrlLanguage(currentUrl)
+                    if (adjustedUrl != currentUrl) {
+                        webView.loadUrl(adjustedUrl)
+                    } else {
+                        webView.reload()
+                    }
                 }
             }
         }
