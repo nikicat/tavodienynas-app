@@ -6,7 +6,7 @@
         android:id="@+id/action_debug"
         android:icon="@drawable/ic_bug"
         android:title="@string/action_debug"
-        app:showAsAction="never" />
+        app:showAsAction="ifRoom" />
 
     <item
         android:id="@+id/action_translate"
