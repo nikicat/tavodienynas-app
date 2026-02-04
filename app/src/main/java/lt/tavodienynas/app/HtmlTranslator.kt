@@ -27,7 +27,7 @@ class HtmlTranslator(
 ) {
     companion object {
         private const val TAG = "HtmlTranslator"
-        private const val BATCH_SIZE = 50
+        private const val BATCH_SIZE = 10
         private const val MIN_TEXT_LENGTH = 2
         private const val MAX_REDIRECTS = 5
         const val JS_INTERFACE_NAME = "PostBodyCapture"

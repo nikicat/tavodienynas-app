@@ -10,7 +10,11 @@ import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
 import com.google.mlkit.nl.translate.TranslatorOptions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -190,24 +194,31 @@ class TranslationManager(private val context: Context) {
     }
 
     /**
-     * Translate multiple texts in batch (more efficient)
+     * Translate multiple texts in parallel with concurrency limited to CPU count
      */
     suspend fun translateBatch(texts: List<String>, targetLanguage: String): List<String> {
         if (texts.isEmpty()) return emptyList()
 
+        val maxConcurrency = Runtime.getRuntime().availableProcessors()
+        val semaphore = Semaphore(maxConcurrency)
+
         return withContext(Dispatchers.IO) {
             texts.map { text ->
-                if (text.isBlank()) {
-                    text
-                } else {
-                    try {
-                        translate(text, targetLanguage)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Batch translation failed for text: ${e.message}")
-                        text // Return original on failure
+                async {
+                    if (text.isBlank()) {
+                        text
+                    } else {
+                        semaphore.withPermit {
+                            try {
+                                translate(text, targetLanguage)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Batch translation failed for text: ${e.message}")
+                                text // Return original on failure
+                            }
+                        }
                     }
                 }
-            }
+            }.awaitAll()
         }
     }
 
