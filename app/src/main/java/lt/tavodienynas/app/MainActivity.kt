@@ -39,8 +39,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var downloadManager: DownloadManager
 
     // Debug panel
+    private lateinit var debugPanel: android.widget.LinearLayout
     private lateinit var debugLogView: android.widget.TextView
     private lateinit var debugScrollView: android.widget.ScrollView
+    private lateinit var debugUrlView: android.widget.TextView
 
     // ML Kit Translation
     private lateinit var translationManager: TranslationManager
@@ -63,9 +65,11 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val BASE_URL = "https://www.manodienynas.lt/"
+        private const val LOGIN_URL_TEMPLATE = "https://www.manodienynas.lt/1/{lang}/public/public/login"
         private const val PREFS_NAME = "manodienynas_prefs"
         private const val PREF_LANGUAGE = "translation_language"
         private const val PREF_DEBUG_VISIBLE = "debug_panel_visible"
+        private const val PREF_LAST_URL = "last_viewed_url"
 
         // Main site - only these can be navigated to
         private val ALLOWED_NAVIGATION_HOSTS = setOf(
@@ -135,8 +139,10 @@ class MainActivity : AppCompatActivity() {
         swipeRefresh = findViewById(R.id.swipeRefresh)
 
         // Initialize debug panel
+        debugPanel = findViewById(R.id.debugPanel)
         debugLogView = findViewById(R.id.debugLogView)
         debugScrollView = findViewById(R.id.debugScrollView)
+        debugUrlView = findViewById(R.id.debugUrlView)
         setupDebugLogger()
 
         // Initialize ML Kit Translation
@@ -180,13 +186,15 @@ class MainActivity : AppCompatActivity() {
     private fun setupDebugLogger() {
         // Restore debug panel visibility
         val debugVisible = prefs.getBoolean(PREF_DEBUG_VISIBLE, false)
-        debugScrollView.visibility = if (debugVisible) View.VISIBLE else View.GONE
+        debugPanel.visibility = if (debugVisible) View.VISIBLE else View.GONE
 
         DebugLogger.setCallback { message ->
             debugLogView.append("$message\n")
-            // Auto-scroll to bottom
-            debugScrollView.post {
-                debugScrollView.fullScroll(android.widget.ScrollView.FOCUS_DOWN)
+            // Auto-scroll to bottom if panel is visible
+            if (debugPanel.visibility == View.VISIBLE) {
+                debugScrollView.post {
+                    debugScrollView.fullScroll(android.widget.ScrollView.FOCUS_DOWN)
+                }
             }
         }
 
@@ -212,10 +220,28 @@ class MainActivity : AppCompatActivity() {
     private fun handleIntent(intent: Intent) {
         val uri = intent.data
         if (uri != null && isAllowedNavigation(uri.toString())) {
-            webView.loadUrl(uri.toString())
+            // Deep link - use provided URL with language adjustment
+            val url = adjustUrlLanguage(uri.toString())
+            webView.loadUrl(url)
         } else {
-            webView.loadUrl(BASE_URL)
+            // No deep link - restore last URL or use login page
+            val lastUrl = prefs.getString(PREF_LAST_URL, null)
+            val url = if (lastUrl != null && isAllowedNavigation(lastUrl)) {
+                adjustUrlLanguage(lastUrl)
+            } else {
+                getDefaultLoginUrl()
+            }
+            DebugLogger.log("Startup URL: ${url.takeLast(50)}")
+            webView.loadUrl(url)
         }
+    }
+
+    /**
+     * Get login URL with correct language path
+     */
+    private fun getDefaultLoginUrl(): String {
+        val urlLang = appLangToUrlLang(currentLanguage)
+        return LOGIN_URL_TEMPLATE.replace("{lang}", urlLang)
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -420,6 +446,9 @@ class MainActivity : AppCompatActivity() {
             progressBar.visibility = View.GONE
             swipeRefresh.isRefreshing = false
 
+            // Update debug URL display
+            debugUrlView.text = "URL: ${url ?: "-"}"
+
             // On first page load with saved language, now enable translation and reload
             // This ensures WebView has synced cookies from disk first
             if (isFirstPageLoad && currentLanguage != "original") {
@@ -573,10 +602,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun toggleDebugPanel() {
-        val isVisible = debugScrollView.visibility == View.VISIBLE
+        val isVisible = debugPanel.visibility == View.VISIBLE
         val newVisibility = if (isVisible) View.GONE else View.VISIBLE
-        debugScrollView.visibility = newVisibility
+        debugPanel.visibility = newVisibility
         prefs.edit().putBoolean(PREF_DEBUG_VISIBLE, !isVisible).apply()
+
+        // Auto-scroll to end when opening panel
+        if (newVisibility == View.VISIBLE) {
+            debugScrollView.post {
+                debugScrollView.fullScroll(android.widget.ScrollView.FOCUS_DOWN)
+            }
+        }
     }
 
     private fun showTranslateDialog() {
@@ -694,6 +730,13 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         webView.onPause()
+
+        // Save current URL for restore on next startup
+        webView.url?.let { url ->
+            if (isAllowedNavigation(url)) {
+                prefs.edit().putString(PREF_LAST_URL, url).apply()
+            }
+        }
     }
 
     override fun onDestroy() {
