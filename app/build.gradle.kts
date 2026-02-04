@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.github.triplet.play")
 }
 
 // Load local.properties for signing config
@@ -61,6 +62,20 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+}
+
+play {
+    // Path to service account JSON key (add to local.properties)
+    val serviceAccountKey = localProperties.getProperty("PLAY_SERVICE_ACCOUNT_JSON")
+    if (serviceAccountKey != null) {
+        serviceAccountCredentials.set(file(serviceAccountKey))
+    }
+
+    // Default to internal track for safety
+    track.set("internal")
+
+    // Use draft status to review before publishing
+    releaseStatus.set(com.github.triplet.gradle.androidpublisher.ReleaseStatus.DRAFT)
 }
 
 dependencies {

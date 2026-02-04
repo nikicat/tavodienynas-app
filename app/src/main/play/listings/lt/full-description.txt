@@ -1,0 +1,28 @@
+Tavo Dienynas suteikia patogią prieigą prie manodienynas.lt mokyklos dienyno sistemos su integruotu vertimo palaikymu.
+
+FUNKCIJOS:
+
+• Automatinis vertimas
+Išverskite visą sąsają į anglų, rusų, lenkų arba ukrainiečių kalbas. Visas vertimas vyksta jūsų įrenginyje naudojant Google ML Kit - jokie duomenys nesiunčiami į išorinius serverius.
+
+• Greita ir efektyvu
+Vertimai saugomi lokaliai, todėl puslapiai pakartotinai įkeliami greitai.
+
+• Saugu
+Programa jungiasi tik prie manodienynas.lt. Jokio sekimo, jokių reklamų, jokio duomenų rinkimo.
+
+• Paprasta naudoti
+Tiesiog pasirinkite pageidaujamą kalbą iš meniu ir naršykite dienyną kaip įprastai. Programa viską atlieka automatiškai.
+
+• Veikia neprisijungus
+Atsisiuntus vertimo modelius, vertimai veikia be interneto (prieigai prie svetainės vis tiek reikalingas ryšys).
+
+PALAIKOMOS KALBOS:
+• Anglų
+• Rusų
+• Lenkų
+• Ukrainiečių
+
+Pastaba: Šiai programai reikalingi prisijungimo duomenys iš jūsų mokyklos manodienynas.lt sistemos. Programa nesaugo jokių prisijungimo duomenų.
+
+Puikiai tinka mokiniams ir tėvams, kurie nori skaityti mokyklos informaciją savo gimtąja kalba.

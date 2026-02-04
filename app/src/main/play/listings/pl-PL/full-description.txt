@@ -1,0 +1,28 @@
+Tavo Dienynas zapewnia wygodny dostęp do systemu dziennika szkolnego manodienynas.lt z wbudowaną obsługą tłumaczeń.
+
+FUNKCJE:
+
+• Automatyczne tłumaczenie
+Przetłumacz cały interfejs na angielski, rosyjski, polski lub ukraiński. Całe tłumaczenie odbywa się na Twoim urządzeniu za pomocą Google ML Kit - żadne dane nie są wysyłane na zewnętrzne serwery.
+
+• Szybko i wydajnie
+Tłumaczenia są zapisywane lokalnie, więc strony ładują się szybko przy ponownych odwiedzinach.
+
+• Bezpiecznie
+Aplikacja łączy się tylko z manodienynas.lt. Bez śledzenia, bez reklam, bez zbierania danych.
+
+• Łatwa w użyciu
+Po prostu wybierz preferowany język z menu i przeglądaj dziennik jak zwykle. Aplikacja zajmuje się wszystkim automatycznie.
+
+• Działa offline
+Po pobraniu modeli tłumaczeniowych tłumaczenia działają bez internetu (dostęp do strony nadal wymaga połączenia).
+
+OBSŁUGIWANE JĘZYKI:
+• Angielski
+• Rosyjski
+• Polski
+• Ukraiński
+
+Uwaga: Ta aplikacja wymaga danych logowania z systemu manodienynas.lt Twojej szkoły. Aplikacja nie przechowuje żadnych danych logowania.
+
+Idealna dla uczniów i rodziców, którzy wolą czytać informacje szkolne w swoim ojczystym języku.

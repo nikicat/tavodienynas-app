@@ -1,0 +1,28 @@
+Tavo Dienynas provides convenient access to the manodienynas.lt school diary system with built-in translation support.
+
+FEATURES:
+
+• Automatic Translation
+Translate the entire interface to English, Russian, Polish, or Ukrainian. All translation happens on your device using Google ML Kit - no data is sent to external servers.
+
+• Fast and Efficient
+Translations are cached locally, so pages load quickly on repeat visits.
+
+• Secure
+The app only connects to manodienynas.lt. No tracking, no ads, no data collection.
+
+• Easy to Use
+Simply select your preferred language from the menu and browse the diary as usual. The app handles everything automatically.
+
+• Works Offline
+Once translation models are downloaded, translations work without internet (website access still requires connection).
+
+SUPPORTED LANGUAGES:
+• English
+• Russian
+• Polish
+• Ukrainian
+
+Note: This app requires login credentials from your school's manodienynas.lt system. The app does not provide or store any login information.
+
+Perfect for students and parents who prefer to read school information in their native language.
