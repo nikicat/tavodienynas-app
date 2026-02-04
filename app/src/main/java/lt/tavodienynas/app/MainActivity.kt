@@ -365,6 +365,7 @@ class MainActivity : AppCompatActivity() {
      * Replace language in URL path to match app's selected language.
      * URL pattern: https://www.manodienynas.lt/1/{lang}/page/...
      * Returns modified URL or original if no language found in path.
+     * Skips action URLs (logout, login actions, etc.) to preserve server redirects.
      */
     private fun adjustUrlLanguage(url: String): String {
         val targetLang = appLangToUrlLang(currentLanguage)
@@ -374,6 +375,11 @@ class MainActivity : AppCompatActivity() {
         val numPrefix = match.groupValues[2]      // "1" or empty
         val urlLang = match.groupValues[3]        // en, ua, lt, ru
         val rest = match.groupValues[4]           // /page/... or empty
+
+        // Skip action URLs - let server handle redirects
+        if (rest.startsWith("/action/") || rest.startsWith("/ajax/")) {
+            return url
+        }
 
         // If URL already has correct language, return as-is
         if (urlLang == targetLang) return url
@@ -400,13 +406,9 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
 
-            // Adjust URL language if needed
-            val adjustedUrl = adjustUrlLanguage(url)
-            if (adjustedUrl != url) {
-                view?.loadUrl(adjustedUrl)
-                return true
-            }
-
+            // Let WebView handle all allowed navigations naturally
+            // URL language adjustment is only done on explicit loadUrl calls (menu, startup)
+            // This preserves session state during post-login redirects
             return false
         }
 
@@ -419,13 +421,7 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
 
-            // Adjust URL language if needed
-            val adjustedUrl = adjustUrlLanguage(url)
-            if (adjustedUrl != url) {
-                view?.loadUrl(adjustedUrl)
-                return true
-            }
-
+            // Let WebView handle all allowed navigations naturally
             return false
         }
 

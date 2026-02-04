@@ -34,7 +34,6 @@ class HtmlTranslator(
         private const val TAG = "HtmlTranslator"
         private const val BATCH_SIZE = 10
         private const val MIN_TEXT_LENGTH = 2
-        private const val MAX_REDIRECTS = 5
         private const val CLEANUP_DELAY_MS = 1000L
         private const val CACHE_MAX_AGE_DAYS = 7
         const val JS_INTERFACE_NAME = "PostBodyCapture"
@@ -177,6 +176,13 @@ class HtmlTranslator(
         // Skip known non-HTML resources by URL pattern
         if (isNonHtmlResource(url)) return null
 
+        // Skip AJAX login/logout requests - let WebView handle them natively for proper cookie handling
+        if (url.contains("/ajax/user/login") || url.contains("/action/user/")) {
+            Log.d(TAG, "Skipping auth URL, letting WebView handle: $url")
+            DebugLogger.log("⏭️ SKIP auth: ${url.takeLast(40)}")
+            return null
+        }
+
         // For POST requests, check if we have the body
         val postBody: PostBodyInfo? = if (method == "POST") {
             DebugLogger.log("📬 POST request URL: $url")
@@ -263,108 +269,77 @@ class HtmlTranslator(
     }
 
     /**
-     * Fetch URL following redirects manually to preserve cookies
+     * Fetch URL WITHOUT following redirects.
+     * Returns null for redirect responses so WebView handles them naturally.
+     * This prevents URL/content mismatch issues.
      */
     private fun fetchWithRedirects(request: WebResourceRequest, postBody: PostBodyInfo?): FetchResponse? {
-        var currentUrl = request.url.toString()
-        var redirectCount = 0
+        val url = request.url.toString()
         val cookieManager = CookieManager.getInstance()
+        cookieManager.flush()
 
-        // Use POST only for first request, redirects are always GET
-        var isPost = postBody != null
-
-        while (redirectCount < MAX_REDIRECTS) {
-            cookieManager.flush()
-
-            // Build headers
-            val headersBuilder = mutableMapOf<String, String>()
-
-            // Copy original headers only for first request
-            if (redirectCount == 0) {
-                request.requestHeaders?.forEach { (key, value) ->
-                    if (!key.equals("Content-Length", ignoreCase = true) &&
-                        !key.equals("Host", ignoreCase = true)) {
-                        headersBuilder[key] = value
-                    }
-                }
+        // Build headers
+        val headersBuilder = mutableMapOf<String, String>()
+        request.requestHeaders?.forEach { (key, value) ->
+            if (!key.equals("Content-Length", ignoreCase = true) &&
+                !key.equals("Host", ignoreCase = true)) {
+                headersBuilder[key] = value
             }
-
-            // Get cookies for current URL
-            val cookies = cookieManager.getCookie(currentUrl)
-            if (cookies != null) {
-                headersBuilder["Cookie"] = cookies
-            }
-
-            // Build request
-            val requestBuilder = Request.Builder()
-                .url(currentUrl)
-                .headers(headersBuilder.toHeaders())
-
-            if (isPost && postBody != null) {
-                val mediaType = (postBody.contentType ?: "application/x-www-form-urlencoded").toMediaTypeOrNull()
-                requestBuilder.post(postBody.body.toRequestBody(mediaType))
-            } else {
-                requestBuilder.get()
-            }
-
-            val okRequest = requestBuilder.build()
-            val response = okHttpClient.newCall(okRequest).execute()
-
-            // Store cookies from response
-            response.headers("Set-Cookie").forEach { cookie ->
-                cookieManager.setCookie(currentUrl, cookie)
-            }
-            cookieManager.flush()
-
-            val responseCode = response.code
-            Log.d(TAG, "Response $responseCode for $currentUrl")
-            DebugLogger.intercepted(currentUrl, responseCode)
-
-            // Handle redirects
-            if (responseCode in 300..399) {
-                val location = response.header("Location")
-                response.close()
-
-                if (location == null) {
-                    Log.e(TAG, "Redirect without Location header")
-                    return null
-                }
-
-                // Resolve relative URLs
-                currentUrl = if (location.startsWith("http")) {
-                    location
-                } else if (location.startsWith("/")) {
-                    val uri = java.net.URI(currentUrl)
-                    "${uri.scheme}://${uri.host}$location"
-                } else {
-                    val uri = java.net.URI(currentUrl)
-                    val basePath = uri.path.substringBeforeLast("/")
-                    "${uri.scheme}://${uri.host}$basePath/$location"
-                }
-
-                Log.d(TAG, "Following redirect to $currentUrl")
-                DebugLogger.redirect(currentUrl)
-                redirectCount++
-                isPost = false // Redirects are always GET
-                continue
-            }
-
-            // Non-redirect response
-            if (responseCode !in 200..299) {
-                response.close()
-                return null
-            }
-
-            val contentType = response.header("Content-Type") ?: "text/html"
-            val mimeType = contentType.split(";").firstOrNull()?.trim() ?: "text/html"
-            val encoding = extractCharset(contentType) ?: "UTF-8"
-            val content = response.body?.bytes() ?: return null
-
-            return FetchResponse(mimeType, encoding, content)
         }
 
-        Log.e(TAG, "Too many redirects for ${request.url}")
-        return null
+        // Get cookies for URL
+        val cookies = cookieManager.getCookie(url)
+        if (cookies != null) {
+            headersBuilder["Cookie"] = cookies
+        }
+
+        // Build request
+        val requestBuilder = Request.Builder()
+            .url(url)
+            .headers(headersBuilder.toHeaders())
+
+        if (postBody != null) {
+            val mediaType = (postBody.contentType ?: "application/x-www-form-urlencoded").toMediaTypeOrNull()
+            requestBuilder.post(postBody.body.toRequestBody(mediaType))
+        } else {
+            requestBuilder.get()
+        }
+
+        val okRequest = requestBuilder.build()
+        val response = okHttpClient.newCall(okRequest).execute()
+
+        // Store cookies from response
+        response.headers("Set-Cookie").forEach { cookie ->
+            cookieManager.setCookie(url, cookie)
+        }
+        cookieManager.flush()
+
+        val responseCode = response.code
+        Log.d(TAG, "Response $responseCode for $url")
+        DebugLogger.intercepted(url, responseCode)
+
+        // For redirects, return null so WebView handles them naturally
+        // This prevents URL/content mismatch issues
+        if (responseCode in 300..399) {
+            val location = response.header("Location")
+            Log.d(TAG, "Redirect detected to $location, letting WebView handle")
+            DebugLogger.log("↩️ REDIRECT: letting WebView handle -> $location")
+            response.close()
+            return null
+        }
+
+        // Non-success response
+        if (responseCode !in 200..299) {
+            response.close()
+            return null
+        }
+
+        val contentType = response.header("Content-Type") ?: "text/html"
+        val mimeType = contentType.split(";").firstOrNull()?.trim() ?: "text/html"
+        val encoding = extractCharset(contentType) ?: "UTF-8"
+        val content = response.body?.bytes() ?: return null
+
+        return FetchResponse(mimeType, encoding, content)
     }
 
     private fun isNonHtmlResource(url: String): Boolean {
