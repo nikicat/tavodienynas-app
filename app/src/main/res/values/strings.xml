@@ -3,7 +3,7 @@
     <string name="app_name">Tavo Dienynas</string>
 
     <!-- Menu actions -->
-    <string name="action_debug">Debug</string>
+    <string name="action_debug" translatable="false">Debug</string>
     <string name="action_translate">Translate</string>
     <string name="action_refresh">Refresh</string>
     <string name="action_home">Home</string>

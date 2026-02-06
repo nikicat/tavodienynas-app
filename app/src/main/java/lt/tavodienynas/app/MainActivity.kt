@@ -36,7 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var toolbar: MaterialToolbar
     private lateinit var prefs: SharedPreferences
-    private lateinit var downloadManager: DownloadManager
+    private var downloadManager: DownloadManager? = null
 
     // Debug panel
     private lateinit var debugPanel: android.widget.LinearLayout
@@ -122,12 +122,17 @@ class MainActivity : AppCompatActivity() {
         currentLanguage = prefs.getString(PREF_LANGUAGE, "original") ?: "original"
 
         // Initialize download manager and register receiver
-        downloadManager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(downloadReceiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), RECEIVER_EXPORTED)
-        } else {
-            @Suppress("UnspecifiedRegisterReceiverFlag")
-            registerReceiver(downloadReceiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+        downloadManager = getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(downloadReceiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), RECEIVER_EXPORTED)
+            } else {
+                @Suppress("UnspecifiedRegisterReceiverFlag")
+                registerReceiver(downloadReceiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+            }
+        } catch (e: Exception) {
+            // Receiver registration failed - downloads will still work but won't auto-open
+            DebugLogger.log("Failed to register download receiver: ${e.message}")
         }
 
         toolbar = findViewById(R.id.toolbar)
@@ -281,6 +286,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun downloadFile(url: String, userAgent: String, contentDisposition: String, mimeType: String) {
+        val dm = downloadManager
+        if (dm == null) {
+            Toast.makeText(this, getString(R.string.download_failed), Toast.LENGTH_SHORT).show()
+            return
+        }
+
         try {
             val request = DownloadManager.Request(Uri.parse(url))
 
@@ -300,7 +311,7 @@ class MainActivity : AppCompatActivity() {
                 setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
             }
 
-            val downloadId = downloadManager.enqueue(request)
+            val downloadId = dm.enqueue(request)
             // Track download to open file when complete
             pendingDownloads[downloadId] = mimeType
 
@@ -748,13 +759,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openDownloadedFile(downloadId: Long, mimeType: String?) {
+        val dm = downloadManager
+        if (dm == null) {
+            Toast.makeText(this, getString(R.string.open_file_failed), Toast.LENGTH_SHORT).show()
+            return
+        }
+
         try {
             // Get content URI from DownloadManager (works on all Android versions)
-            val contentUri = downloadManager.getUriForDownloadedFile(downloadId)
+            val contentUri = dm.getUriForDownloadedFile(downloadId)
 
             if (contentUri != null) {
                 // Get actual MIME type if not provided
-                val actualMimeType = mimeType ?: downloadManager.getMimeTypeForDownloadedFile(downloadId) ?: "*/*"
+                val actualMimeType = mimeType ?: dm.getMimeTypeForDownloadedFile(downloadId) ?: "*/*"
 
                 // Open file with appropriate app in a new task
                 val intent = Intent(Intent.ACTION_VIEW).apply {

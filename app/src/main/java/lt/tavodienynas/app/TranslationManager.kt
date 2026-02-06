@@ -154,18 +154,25 @@ class TranslationManager(private val context: Context) {
     }
 
     /**
-     * Get or create a translator for the target language
+     * Get or create a translator for the target language.
+     * Returns null if the language is not supported.
      */
-    private fun getTranslator(targetLanguage: String): Translator {
+    private fun getTranslator(targetLanguage: String): Translator? {
         if (currentTargetLanguage == targetLanguage && currentTranslator != null) {
-            return currentTranslator!!
+            return currentTranslator
         }
 
         // Close previous translator
         currentTranslator?.close()
 
-        val sourceLang = LANGUAGE_MAP[SOURCE_LANGUAGE]!!
-        val targetLang = LANGUAGE_MAP[targetLanguage]!!
+        val sourceLang = LANGUAGE_MAP[SOURCE_LANGUAGE] ?: run {
+            Log.e(TAG, "Source language '$SOURCE_LANGUAGE' not found in LANGUAGE_MAP")
+            return null
+        }
+        val targetLang = LANGUAGE_MAP[targetLanguage] ?: run {
+            Log.e(TAG, "Target language '$targetLanguage' not found in LANGUAGE_MAP")
+            return null
+        }
 
         val options = TranslatorOptions.Builder()
             .setSourceLanguage(sourceLang)
@@ -174,7 +181,7 @@ class TranslationManager(private val context: Context) {
 
         currentTranslator = Translation.getClient(options)
         currentTargetLanguage = targetLanguage
-        return currentTranslator!!
+        return currentTranslator
     }
 
     /**
@@ -201,7 +208,10 @@ class TranslationManager(private val context: Context) {
      * Translate using ML Kit (no cache)
      */
     private suspend fun translateWithMlKit(text: String, targetLanguage: String): String {
-        val translator = getTranslator(targetLanguage)
+        val translator = getTranslator(targetLanguage) ?: run {
+            Log.e(TAG, "Could not get translator for '$targetLanguage', returning original text")
+            return text
+        }
 
         return suspendCancellableCoroutine { cont ->
             translator.translate(text)
