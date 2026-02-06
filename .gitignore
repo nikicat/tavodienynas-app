@@ -53,3 +53,9 @@ kls_database.db
 
 # Misc
 output.zip
+
+# App Crawler (downloaded on demand)
+tools/app-crawler/
+
+# Crawl output
+crawl_output/
