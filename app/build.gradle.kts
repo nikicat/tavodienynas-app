@@ -4,6 +4,8 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.github.triplet.play")
+    id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
 }
 
 // Load local.properties for signing config
@@ -32,10 +34,10 @@ android {
 
     defaultConfig {
         applicationId = "lt.tavodienynas.app"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
     }
 
     buildTypes {
@@ -93,4 +95,9 @@ dependencies {
 
     // OkHttp for manual POST request reconstruction
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Firebase Crashlytics for crash reporting
+    implementation(platform("com.google.firebase:firebase-bom:33.8.0"))
+    implementation("com.google.firebase:firebase-crashlytics")
+    implementation("com.google.firebase:firebase-analytics")
 }

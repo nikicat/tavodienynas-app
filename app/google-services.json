@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "338895585019",
+    "project_id": "nbrs-243915",
+    "storage_bucket": "nbrs-243915.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:338895585019:android:a41db300407dbae8b3ba5e",
+        "android_client_info": {
+          "package_name": "lt.tavodienynas.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "338895585019-1i2t1es21lf2034knqf59laqj33ve7oe.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB2mcWX8MrVHkYTe7Zvv0L3wMV1OaqimLI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "338895585019-1i2t1es21lf2034knqf59laqj33ve7oe.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:338895585019:android:d01ba21b97b7c739b3ba5e",
+        "android_client_info": {
+          "package_name": "nasty.uberlogger"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "338895585019-1i2t1es21lf2034knqf59laqj33ve7oe.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB2mcWX8MrVHkYTe7Zvv0L3wMV1OaqimLI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "338895585019-1i2t1es21lf2034knqf59laqj33ve7oe.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
