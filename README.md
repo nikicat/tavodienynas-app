@@ -45,6 +45,14 @@ Build the release bundle:
 
 Output: `app/build/outputs/bundle/release/app-release.aab`
 
+## Publishing to Google Play
+
+Upload the release AAB via Google Play Console. When creating a release, always **create a new release** rather than reusing a pending one — resubmitting an existing release may cause Google to review the old bundle.
+
+### Native debug symbols warning
+
+Google Play Console will show a warning: *"This App Bundle contains native code, and you've not uploaded debug symbols."* This is expected — the native `.so` files come from ML Kit and are already stripped by Google. There are no debug symbols to include. The warning is informational and does not block publication.
+
 ## Translation
 
 The app uses Google ML Kit for on-device translation. Supported target languages:
