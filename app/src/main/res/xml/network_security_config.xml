@@ -19,6 +19,8 @@
         <!-- Google APIs -->
         <domain includeSubdomains="true">ajax.googleapis.com</domain>
         <domain includeSubdomains="true">www.googleapis.com</domain>
+        <!-- Cloudflare challenge/security verification -->
+        <domain includeSubdomains="true">challenges.cloudflare.com</domain>
     </domain-config>
 
     <!-- Block all other domains by default -->

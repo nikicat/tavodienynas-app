@@ -90,7 +90,9 @@ class MainActivity : AppCompatActivity() {
             "unpkg.com",
             // Google APIs (for various services)
             "ajax.googleapis.com",
-            "www.googleapis.com"
+            "www.googleapis.com",
+            // Cloudflare challenge/security verification
+            "challenges.cloudflare.com"
         )
 
         // Website supported languages in URL path
