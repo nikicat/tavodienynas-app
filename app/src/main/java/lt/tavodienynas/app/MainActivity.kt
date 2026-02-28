@@ -74,7 +74,9 @@ class MainActivity : AppCompatActivity() {
         // Main site - only these can be navigated to
         private val ALLOWED_NAVIGATION_HOSTS = setOf(
             "manodienynas.lt",
-            "www.manodienynas.lt"
+            "www.manodienynas.lt",
+            "diaryium.com",
+            "www.diaryium.com"
         )
 
         // Allowed resource hosts (fonts, icons, CDNs)

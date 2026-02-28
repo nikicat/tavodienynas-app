@@ -4,6 +4,8 @@
     <domain-config cleartextTrafficPermitted="false">
         <!-- Main site -->
         <domain includeSubdomains="true">manodienynas.lt</domain>
+        <!-- Logout/session endpoint used by the site -->
+        <domain includeSubdomains="true">diaryium.com</domain>
         <!-- Google Fonts & Icons -->
         <domain includeSubdomains="true">fonts.googleapis.com</domain>
         <domain includeSubdomains="true">fonts.gstatic.com</domain>
