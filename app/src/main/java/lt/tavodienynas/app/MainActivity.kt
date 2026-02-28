@@ -8,6 +8,10 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -50,6 +54,7 @@ class MainActivity : AppCompatActivity() {
     private var webViewTranslator: WebViewTranslator? = null
 
     private var currentLanguage: String = "original"
+    private var translateMenuItem: MenuItem? = null
     private val pendingDownloads = mutableMapOf<Long, String>() // downloadId to mimeType
     private var isFirstPageLoad = true // Flag to skip interception on first load for cookie sync
 
@@ -586,6 +591,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
+        translateMenuItem = menu.findItem(R.id.action_translate)
+        updateTranslateIcon()
         return true
     }
 
@@ -661,10 +668,36 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     applyTranslation(languageChanged)
                 }
+                updateTranslateIcon()
                 dialog.dismiss()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    private fun updateTranslateIcon() {
+        val item = translateMenuItem ?: return
+        if (currentLanguage == "original") {
+            item.setIcon(R.drawable.ic_translate)
+        } else {
+            item.icon = createTextIcon(currentLanguage.uppercase())
+        }
+    }
+
+    private fun createTextIcon(text: String): BitmapDrawable {
+        val size = (24 * resources.displayMetrics.density).toInt()
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.WHITE
+            textSize = size * 0.85f
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        val x = size / 2f
+        val y = size / 2f - (paint.descent() + paint.ascent()) / 2f
+        canvas.drawText(text, x, y, paint)
+        return BitmapDrawable(resources, bitmap)
     }
 
     /**
