@@ -10,12 +10,14 @@ import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
 import com.google.mlkit.nl.translate.TranslatorOptions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -40,6 +42,9 @@ class TranslationManager(private val context: Context) {
 
         // Source language is always Lithuanian
         const val SOURCE_LANGUAGE = "lt"
+
+        private const val MODEL_CHECK_TIMEOUT_MS = 10_000L
+        private const val MODEL_DOWNLOAD_TIMEOUT_MS = 120_000L
     }
 
     private val modelManager = RemoteModelManager.getInstance()
@@ -56,15 +61,22 @@ class TranslationManager(private val context: Context) {
         val mlKitCode = LANGUAGE_MAP[languageCode] ?: return false
         val model = TranslateRemoteModel.Builder(mlKitCode).build()
 
-        return suspendCancellableCoroutine { cont ->
-            modelManager.isModelDownloaded(model)
-                .addOnSuccessListener { isDownloaded ->
-                    cont.resume(isDownloaded)
+        return try {
+            withTimeout(MODEL_CHECK_TIMEOUT_MS) {
+                suspendCancellableCoroutine { cont ->
+                    modelManager.isModelDownloaded(model)
+                        .addOnSuccessListener { isDownloaded ->
+                            cont.resume(isDownloaded)
+                        }
+                        .addOnFailureListener { e ->
+                            Log.e(TAG, "Failed to check model status: ${e.message}")
+                            cont.resume(false)
+                        }
                 }
-                .addOnFailureListener { e ->
-                    Log.e(TAG, "Failed to check model status: ${e.message}")
-                    cont.resume(false)
-                }
+            }
+        } catch (e: TimeoutCancellationException) {
+            Log.e(TAG, "Model check timed out for $languageCode (Google Play Services unavailable?)")
+            false
         }
     }
 
@@ -81,18 +93,26 @@ class TranslationManager(private val context: Context) {
             .requireWifi()
             .build()
 
-        return suspendCancellableCoroutine { cont ->
-            modelManager.download(model, conditions)
-                .addOnSuccessListener {
-                    Log.d(TAG, "Model downloaded: $languageCode")
-                    onProgress?.invoke("Download complete")
-                    cont.resume(true)
+        return try {
+            withTimeout(MODEL_DOWNLOAD_TIMEOUT_MS) {
+                suspendCancellableCoroutine { cont ->
+                    modelManager.download(model, conditions)
+                        .addOnSuccessListener {
+                            Log.d(TAG, "Model downloaded: $languageCode")
+                            onProgress?.invoke("Download complete")
+                            cont.resume(true)
+                        }
+                        .addOnFailureListener { e ->
+                            Log.e(TAG, "Failed to download model: ${e.message}")
+                            onProgress?.invoke("Download failed: ${e.message}")
+                            cont.resume(false)
+                        }
                 }
-                .addOnFailureListener { e ->
-                    Log.e(TAG, "Failed to download model: ${e.message}")
-                    onProgress?.invoke("Download failed: ${e.message}")
-                    cont.resume(false)
-                }
+            }
+        } catch (e: TimeoutCancellationException) {
+            Log.e(TAG, "Model download timed out for $languageCode")
+            onProgress?.invoke("Download timed out — Google Play Services may be unavailable")
+            false
         }
     }
 
