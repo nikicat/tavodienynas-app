@@ -258,7 +258,6 @@ class MainActivity : AppCompatActivity() {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
-            databaseEnabled = true
             cacheMode = WebSettings.LOAD_DEFAULT
             setSupportZoom(true)
             builtInZoomControls = true
@@ -501,7 +500,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             // Try to intercept and translate HTML responses
-            if (request != null && htmlTranslator.isEnabled) {
+            if (htmlTranslator.isEnabled) {
                 val translatedResponse = htmlTranslator.interceptRequest(request)
                 if (translatedResponse != null) {
                     return translatedResponse

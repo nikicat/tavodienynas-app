@@ -76,6 +76,9 @@ class HtmlTranslator(
         // IDs where text content should be skipped but title attributes translated
         private val SKIP_TEXT_IDS = setOf("languages-block")
 
+        // Element IDs inside SKIP_TAGS that the webapp doesn't translate (Lithuanian only)
+        private val FORCE_TRANSLATE_IDS = setOf("day_view_subscribe")
+
         // Attributes to translate
         private val TRANSLATABLE_ATTRS = setOf("title", "alt", "placeholder")
     }
@@ -465,6 +468,13 @@ class HtmlTranslator(
             val collectedAttrs = mutableListOf<CollectedAttribute>()
             collectTextNodes(doc.body(), collectedNodes, collectedAttrs, isDayContext = false, skipTextContext = false)
 
+            // Force-translate specific elements that the webapp doesn't translate
+            for (id in FORCE_TRANSLATE_IDS) {
+                doc.getElementById(id)?.let { el ->
+                    collectTextNodes(el, collectedNodes, collectedAttrs, isDayContext = false, skipTextContext = false, forceSkipTagOverride = true)
+                }
+            }
+
             if (collectedNodes.isEmpty() && collectedAttrs.isEmpty()) return html
 
             // Separate day nodes from regular nodes
@@ -562,10 +572,11 @@ class HtmlTranslator(
         textNodes: MutableList<CollectedTextNode>,
         attributes: MutableList<CollectedAttribute>,
         isDayContext: Boolean,
-        skipTextContext: Boolean
+        skipTextContext: Boolean,
+        forceSkipTagOverride: Boolean = false
     ) {
         if (element == null) return
-        if (SKIP_TAGS.contains(element.tagName().lowercase())) return
+        if (!forceSkipTagOverride && SKIP_TAGS.contains(element.tagName().lowercase())) return
         if (element.attr("translate") == "no") return
         if (element.hasClass("notranslate")) return
         if (isIconElement(element)) return
